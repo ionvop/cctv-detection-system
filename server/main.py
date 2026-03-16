@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from database import engine, Base
-from routers import cctv
+from common.database import engine, Base
+from .routers import cctv
+import common.models
 
 
 @asynccontextmanager
