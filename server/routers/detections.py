@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from database import get_db
+from common.database import get_db
 from typing import Optional
-import models
-import schemas
+import common.models as models
+from .. import schemas
 
 
 router = APIRouter(
