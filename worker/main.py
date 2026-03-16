@@ -3,12 +3,11 @@ from ultralytics import YOLO
 import common.models as models
 import time
 import cv2
-
-
-CCTV_ID = 2
+import sys
 
 
 def main() -> None:
+    cctv_id = int(sys.argv[1])
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     model = YOLO("yolov8s.pt")
@@ -20,14 +19,22 @@ def main() -> None:
             coords = get_coords(cap, model)
 
             if len(coords) > 0:
-                detection = models.Detection(cctv_id=CCTV_ID)
-                
-                for coord in coords:
-                    detection.coords.append(models.Coord(x=coord["x"], y=coord["y"]))
+                detections = [
+                    models.Detection(
+                        cctv_id=cctv_id,
+                        x=coord["x"],
+                        y=coord["y"]
+                    )
+                    for coord in coords
+                ]
 
-                db.add(detection)
+                db.add_all(detections)
                 db.commit()
-                print(f"{len(coords)} detection{'' if len(coords) == 1 else 's'} added to CCTV {CCTV_ID}")
+
+                print(
+                    f"{len(coords)} detection{'' if len(coords) == 1 else 's'} added to CCTV {cctv_id}"
+                )
+
     except KeyboardInterrupt:
         print("Exiting...")
     finally:
