@@ -1,6 +1,6 @@
-from models import Base, CCTV, Detection, Coord
-from database import SessionLocal, engine
+from common.database import Base, SessionLocal, engine
 from ultralytics import YOLO
+import common.models as models
 import time
 import cv2
 
@@ -20,10 +20,10 @@ def main() -> None:
             coords = get_coords(cap, model)
 
             if len(coords) > 0:
-                detection = Detection(cctv_id=CCTV_ID)
+                detection = models.Detection(cctv_id=CCTV_ID)
                 
                 for coord in coords:
-                    detection.coords.append(Coord(x=coord["x"], y=coord["y"]))
+                    detection.coords.append(models.Coord(x=coord["x"], y=coord["y"]))
 
                 db.add(detection)
                 db.commit()
