@@ -23,45 +23,24 @@ def get_detections(
     region_end_y: Optional[float] = Query(None, ge=0, le=1),
     db: Session = Depends(get_db)
 ):
-    detections = (
-        db.query(models.Detection)
-        .filter(
-            models.Detection.cctv_id == cctv_id,
-            models.Detection.time >= start_time,
-            models.Detection.time <= end_time
-        )
-        .all()
+    query = db.query(models.Detection).filter(
+        models.Detection.cctv_id == cctv_id,
+        models.Detection.time >= start_time,
+        models.Detection.time <= end_time
     )
 
-    results = []
-
-    for detection in detections:
-        coords_query = db.query(models.Coord).filter(
-            models.Coord.detection_id == detection.id
+    # Apply region filter if provided
+    if None not in (
+        region_start_x,
+        region_start_y,
+        region_end_x,
+        region_end_y
+    ):
+        query = query.filter(
+            models.Detection.x >= region_start_x,
+            models.Detection.x <= region_end_x,
+            models.Detection.y >= region_start_y,
+            models.Detection.y <= region_end_y,
         )
 
-        if None not in (
-            region_start_x,
-            region_start_y,
-            region_end_x,
-            region_end_y
-        ):
-            coords_query = coords_query.filter(
-                models.Coord.x >= region_start_x,
-                models.Coord.x <= region_end_x,
-                models.Coord.y >= region_start_y,
-                models.Coord.y <= region_end_y,
-            )
-
-        coords = coords_query.all()
-
-        if not coords:
-            continue
-
-        results.append({
-            "id": detection.id,
-            "time": detection.time,
-            "coords": [{"x": c.x, "y": c.y} for c in coords]
-        })
-
-    return results
+    return query.all()
