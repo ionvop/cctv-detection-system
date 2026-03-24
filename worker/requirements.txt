@@ -1,4 +1,4 @@
-mysql-connector-python
-opencv-python
+opencv-python-headless
 ultralytics
 sqlalchemy
+psycopg2-binary

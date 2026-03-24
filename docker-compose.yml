@@ -1,0 +1,65 @@
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    container_name: worker
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/traffic
+    depends_on:
+      - pgbouncer
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: server
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/traffic
+    ports:
+      - "8000:8000"
+    depends_on:
+      - pgbouncer
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: timescaledb
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: traffic
+    ports:
+      - "5433:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: pgbouncer
+    environment:
+      DB_HOST: timescaledb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: traffic
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 25
+      AUTH_TYPE: scram-sha-256
+    ports:
+      - "5432:5432"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+
+networks:
+  default:
+    name: traffic_network
+
+volumes:
+  timescale_data:
