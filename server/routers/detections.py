@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from common.database import get_db
 from typing import Optional
 import common.models as models
-from .. import schemas
+import schemas
 
 
 router = APIRouter(
