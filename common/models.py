@@ -8,6 +8,7 @@ class Intersection(Base):
     __tablename__ = "intersections"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    intersection_id = Column(Integer, ForeignKey("intersections.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=False)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
