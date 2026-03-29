@@ -1,5 +1,7 @@
 # CCTV Detection System
 
+TODO: Update this `README.md` file to reflect the current state of the project.
+
 A simple CCTV detection system built with **FastAPI**, **MySQL**, and **YOLOv8**.
 
 The project consists of two components:
