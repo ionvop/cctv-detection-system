@@ -1,7 +1,37 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from .database import Base
+from common.database import Base
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(255), nullable=False, unique=True)
+    hash = Column(String(255), nullable=False)
+    time = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    sessions = relationship("UserSession", back_populates="user", cascade="all, delete")
+
+
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token = Column(String(255), nullable=False)
+    time = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="sessions")
+
+
+class Log(Base):
+    __tablename__ = "logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    message = Column(String(255), nullable=False)
+    time = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class Intersection(Base):
