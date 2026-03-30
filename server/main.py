@@ -6,6 +6,7 @@ from server.utils import SESSION_EXPIRATION
 from contextlib import asynccontextmanager
 from common.models import UserSession
 from fastapi import FastAPI
+from dotenv import load_dotenv
 
 
 @repeat_every(seconds=3600)
@@ -69,6 +70,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
+load_dotenv()
 app = FastAPI(lifespan=lifespan)
 app.include_router(user.router)
 app.include_router(login.router)
