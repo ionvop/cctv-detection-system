@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 from common.database import Base
+from sqlalchemy.sql import func
 
 
 class User(Base):
