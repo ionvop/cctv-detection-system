@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from common.models import User, UserSession
+from common.models import User
 from server.utils import log_and_commit, get_current_user
 from server.schemas import UserBase
 from common.database import get_db
@@ -20,7 +20,7 @@ def login(
     user: UserBase,
     db: Session = Depends(get_db)
 ) -> dict[str, str]:
-    db_user = db.query(User).filter(User.username == user.username).first()
+    db_user = db.get(User, user.username)
 
     if not db_user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -29,8 +29,7 @@ def login(
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = urandom(32).hex()
-    db_session = UserSession(user_id=db_user.id, token=token)
-    db.add(db_session)
+    db_user.session = token
     log_and_commit(f"User {db_user.username} logged in", db)
     return {"token": token}
 
@@ -41,6 +40,6 @@ def logout(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict[str, str]:
-    db.query(UserSession).filter(UserSession.user_id == user.id).delete()
+    user.session = None
     log_and_commit(f"User {user.username} logged out", db)
     return {"detail": "Logged out"}
