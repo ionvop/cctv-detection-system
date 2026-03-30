@@ -1,11 +1,24 @@
-from sqlalchemy import text
+from common.database import engine, Base, SessionLocal
+from datetime import datetime, timedelta, timezone
+from routers import user, login, intersection
+from fastapi_utils.tasks import repeat_every
+from server.utils import SESSION_EXPIRATION
 from contextlib import asynccontextmanager
-from common.database import engine, Base
-import common.models
+from common.models import UserSession
+from fastapi import FastAPI
+
+
+@repeat_every(seconds=3600)
+async def delete_expired_sessions() -> None:
+    db = SessionLocal()
+    db.query(UserSession).filter(UserSession.time < datetime.now(timezone.utc) - timedelta(seconds=SESSION_EXPIRATION)).delete()
+    db.commit()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    await delete_expired_sessions()
 
     with engine.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb;"))
@@ -57,3 +70,6 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(user.router)
+app.include_router(login.router)
+app.include_router(intersection.router)
