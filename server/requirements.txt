@@ -1,3 +1,5 @@
+bcrypt
 fastapi[standard]
-sqlalchemy
+fastapi-utils
 mysql-connector-python
+sqlalchemy
