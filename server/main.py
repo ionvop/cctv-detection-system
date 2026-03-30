@@ -4,16 +4,8 @@ from datetime import datetime, timedelta, timezone
 from fastapi_utils.tasks import repeat_every
 from server.utils import SESSION_EXPIRATION
 from contextlib import asynccontextmanager
-from common.models import UserSession
 from fastapi import FastAPI
 from dotenv import load_dotenv
-
-
-@repeat_every(seconds=3600)
-async def delete_expired_sessions() -> None:
-    db = SessionLocal()
-    db.query(UserSession).filter(UserSession.time < datetime.now(timezone.utc) - timedelta(seconds=SESSION_EXPIRATION)).delete()
-    db.commit()
 
 
 @asynccontextmanager
