@@ -1,6 +1,5 @@
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from datetime import datetime, timedelta, timezone
-from common.models import User, UserSession, Log
+from common.models import User, Log
 from fastapi import Depends, HTTPException
 from common.database import get_db
 from sqlalchemy.orm import Session
@@ -8,7 +7,6 @@ from typing import Annotated
 from os import getenv
 
 
-SESSION_EXPIRATION = 86400
 SUPER_KEY = getenv("SUPER_KEY")
 bearer_scheme = HTTPBearer()
 
@@ -33,7 +31,7 @@ def get_current_user(
     token: Annotated[str, Depends(get_bearer_token)],
     db: Annotated[Session, Depends(get_db)]
 ) -> User:
-    db_user = db.query(User).join(UserSession, User.id == UserSession.user_id).filter(UserSession.token == token).first()
+    db_user = db.query(User).filter(User.session == token).first()
 
     if not db_user:
         raise HTTPException(status_code=401, detail="Unauthorized")
