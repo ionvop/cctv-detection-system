@@ -1,6 +1,6 @@
 from common.database import engine, Base, SessionLocal
+from server.routers import user, login, intersection
 from datetime import datetime, timedelta, timezone
-from routers import user, login, intersection
 from fastapi_utils.tasks import repeat_every
 from server.utils import SESSION_EXPIRATION
 from contextlib import asynccontextmanager
