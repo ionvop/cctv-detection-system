@@ -39,3 +39,72 @@ class IntersectionResponse(IntersectionBase):
     id: int
     time: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class StreetBase(BaseModel):
+    intersection_id: int
+    name: str
+
+
+class StreetCreate(StreetBase):
+    pass
+
+
+class StreetUpdate(BaseModel):
+    name: Optional[str] = None
+
+
+class StreetResponse(StreetBase):
+    id: int
+    time: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CCTVBase(BaseModel):
+    intersection_id: int
+    name: str
+    rtsp_url: str
+
+
+class CCTVCreate(CCTVBase):
+    pass
+
+
+class CCTVUpdate(BaseModel):
+    name: Optional[str] = None
+    rtsp_url: Optional[str] = None
+
+
+class CCTVResponse(CCTVBase):
+    id: int
+    time: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DetectionBase(BaseModel):
+    cctv_id: int
+    type: str
+
+
+class DetectionResponse(DetectionBase):
+    id: int
+    time: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RegionPointBase(BaseModel):
+    region_id: int
+    x: int
+    y: int
+
+
+class RegionBase(BaseModel):
+    cctv_id: int
+    street_id: int
+    region_points: list[RegionPointBase]
+
+
+class RegionResponse(RegionBase):
+    id: int
+    time: datetime
+    model_config = ConfigDict(from_attributes=True)
