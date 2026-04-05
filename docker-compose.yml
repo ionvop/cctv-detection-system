@@ -1,29 +1,8 @@
 services:
-  worker:
-    build:
-      context: .
-      dockerfile: worker/Dockerfile
-    container_name: worker
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/traffic
-    depends_on:
-      - pgbouncer
-
-  server:
-    build:
-      context: .
-      dockerfile: server/Dockerfile
-    container_name: server
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/traffic
-    ports:
-      - "8000:8000"
-    depends_on:
-      - pgbouncer
-
   timescaledb:
     image: timescale/timescaledb:latest-pg16
     container_name: timescaledb
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -42,6 +21,7 @@ services:
   pgbouncer:
     image: edoburu/pgbouncer:latest
     container_name: pgbouncer
+    restart: unless-stopped
     environment:
       DB_HOST: timescaledb
       DB_USER: postgres
@@ -56,6 +36,74 @@ services:
     depends_on:
       timescaledb:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 5432 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rq-worker:
+    build:
+      context: .
+      dockerfile: rq-worker/Dockerfile
+    container_name: rq-worker
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/traffic
+    depends_on:
+      redis:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: server
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/traffic
+    ports:
+      - "8000:8000"
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    container_name: worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/traffic
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: mediamtx
+    restart: unless-stopped
+    ports:
+      - "8554:8554"
+      - "8888:8888"
+      - "8889:8889"
+      - "1935:1935"
 
 networks:
   default:
