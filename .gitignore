@@ -1,2 +1,6 @@
 *.pt
 .env
+
+scripts/
+
+venv/

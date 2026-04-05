@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 
@@ -11,10 +11,16 @@ engine = create_engine(
     max_overflow=20,
 )
 
-DATABASE_URL = "mysql+mysqlconnector://root:@localhost:3306/_20260301"
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+
+@event.listens_for(Base.metadata, "before_create")
+def skip_views(target, connection, **kw):
+    tables = kw.get("tables")
+    if tables is not None:
+        tables[:] = [t for t in tables if not t.info.get("is_view")]
+
 
 def get_db():
     db = SessionLocal()
