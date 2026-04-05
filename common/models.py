@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float, Boolean, Text, event
+from sqlalchemy import BigInteger, Column, Integer, String, ForeignKey, DateTime, Float, Boolean, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from common.database import Base
@@ -13,6 +13,9 @@ class User(Base):
     session  = Column(String(255), nullable=True)
     role     = Column(String(50),  nullable=False, default="viewer")
     time     = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    uploaded_videos    = relationship("Video",            back_populates="uploader",          foreign_keys="Video.uploaded_by")
+    push_subscriptions = relationship("PushSubscription", back_populates="user", cascade="all, delete")
 
 
 class Log(Base):
@@ -111,7 +114,7 @@ class RegionPoint(Base):
 class Detection(Base):
     __tablename__ = "detections"
 
-    id          = Column(Integer, primary_key=True, autoincrement=True)
+    id          = Column(BigInteger, primary_key=True, autoincrement=True)
     cctv_id     = Column(Integer, ForeignKey("cctvs.id",  ondelete="CASCADE"),  nullable=False)
     video_id    = Column(Integer, ForeignKey("videos.id", ondelete="SET NULL"), nullable=True)
     track_id    = Column(Integer,     nullable=True)
@@ -125,15 +128,21 @@ class Detection(Base):
 
     cctv                  = relationship("CCTV",  back_populates="detections")
     video                 = relationship("Video", back_populates="detections")
-    detections_in_regions = relationship("DetectionInRegion", back_populates="detection", cascade="all, delete")
+    detections_in_regions = relationship(
+        "DetectionInRegion",
+        back_populates="detection",
+        cascade="all, delete",
+        primaryjoin="Detection.id == DetectionInRegion.detection_id",
+        foreign_keys="[DetectionInRegion.detection_id]",
+    )
 
 
 class DetectionInRegion(Base):
     __tablename__ = "detections_in_regions"
 
-    id           = Column(Integer, primary_key=True, autoincrement=True)
-    region_id    = Column(Integer, ForeignKey("regions.id", ondelete="CASCADE"), nullable=False)
-    detection_id = Column(Integer, nullable=False)
+    id           = Column(Integer,    primary_key=True, autoincrement=True)
+    region_id    = Column(Integer,    ForeignKey("regions.id", ondelete="CASCADE"), nullable=False)
+    detection_id = Column(BigInteger, nullable=False)
     time         = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     region    = relationship("Region",    back_populates="detections_in_regions")
@@ -146,6 +155,7 @@ class Video(Base):
 
     id               = Column(Integer, primary_key=True, autoincrement=True)
     intersection_id  = Column(Integer, ForeignKey("intersections.id", ondelete="SET NULL"), nullable=True)
+    uploaded_by      = Column(Integer, ForeignKey("users.id",         ondelete="SET NULL"), nullable=True)
     filename         = Column(String(255), nullable=False)
     filepath         = Column(String(255), nullable=False)
     recorded_at      = Column(DateTime(timezone=True), nullable=True)
@@ -157,6 +167,7 @@ class Video(Base):
     processed_at     = Column(DateTime(timezone=True), nullable=True)
 
     intersection = relationship("Intersection", back_populates="videos")
+    uploader     = relationship("User",         back_populates="uploaded_videos", foreign_keys=[uploaded_by])
     detections   = relationship("Detection",    back_populates="video")
 
 class Recommendation(Base):
@@ -175,6 +186,19 @@ class Recommendation(Base):
     generated_at         = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     intersection = relationship("Intersection", back_populates="recommendations")
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    endpoint   = Column(Text,    nullable=False, unique=True)
+    p256dh     = Column(Text,    nullable=False)
+    auth       = Column(Text,    nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="push_subscriptions")
+
 
 class AggregationSummary(Base):
     __tablename__ = "aggregation_summaries"
