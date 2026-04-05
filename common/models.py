@@ -55,8 +55,6 @@ class Detection(Base):
     __tablename__ = "detections"
     id = Column(Integer, primary_key=True, autoincrement=True)
     cctv_id = Column(Integer, ForeignKey("cctvs.id", ondelete="CASCADE"), nullable=False)
-    x = Column(Integer, nullable=False)
-    y = Column(Integer, nullable=False)
     type = Column(String(255), nullable=False)
     time = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     cctv = relationship("CCTV", back_populates="detections")
