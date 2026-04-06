@@ -68,100 +68,110 @@ def main() -> None:
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     model = YOLO("yolov8s.pt")
+    
+    while True:
+        cctv, claim_version = claim_camera(db)
+        cctv_id: int = cctv.id # type: ignore
+        rtsp_url = resolve_rtsp_url(cctv, args)
+        
+        fps_ref = [0.0]
+        heartbeat = HeartbeatThread(cctv_id=cctv_id, fps_ref=fps_ref)
+        heartbeat.start()
+        
+        regions = initialize_regions(db, cctv_id)
+        track_states: dict[int, TrackState] = {}
+        
+        last_prune_ts = time.time()
+        frame_count = 0
+        fps_timer_start = time.time()
 
-    cctv, claim_version = claim_camera(db)
-    cctv_id: int = cctv.id # type: ignore
+        cap = open_stream(rtsp_url, args.debug)
+        if not cap.isOpened():
+            print(f"[worker cctv={cctv_id}] initial stream open failed, entering reconnect...")
+            cap = reconnect_stream(rtsp_url, args.debug, db, cctv_id)
+        
+        claim_lost = False
+        
+        try:
+            while True:
+                
+                ret, frame = cap.read()
 
-    rtsp_url = resolve_rtsp_url(cctv, args)
-
-    fps_ref = [0.0]
-    heartbeat = HeartbeatThread(cctv_id=cctv_id, fps_ref=fps_ref)
-    heartbeat.start()
-
-    cap = open_stream(rtsp_url, args.debug)
-    if not cap.isOpened():
-        print(f"[worker cctv={cctv_id}] initial stream open failed, entering reconnect...")
-        cap = reconnect_stream(rtsp_url, args.debug, db, cctv_id)
-
-    regions = initialize_regions(db, cctv_id)
-
-    track_states: dict[int, TrackState] = {}
-    last_prune_ts = time.time()
-    frame_count = 0
-    fps_timer_start = time.time()
-
-    try:
-        while True:
-            ret, frame = cap.read()
-
-            if not ret:
-                # close the broken connection and reinitialize the states for the next iteration, annoying ahh language
-                # btw, the heartbeat thread still runs in the background here
-                cap.release()
-                cap = reconnect_stream(rtsp_url, args.debug, db, cctv_id)
-                regions = initialize_regions(db, cctv_id)
-                track_states.clear()
-                continue
-
-            frame_count += 1
-
-            # check ownership of cctv every 100 frames with verify claim (claim_version column) to avoid the split brain issue
-            if frame_count % 100 == 0:
-                if not verify_claim(db, cctv_id, claim_version):
-                    print(f"[worker cctv={cctv_id}] claim lost, exiting inference loop")
-                    break
-
-            if frame_count % FPS_SAMPLE_INTERVAL == 0:
-                elapsed = time.time() - fps_timer_start
-                fps_ref[0] = round(FPS_SAMPLE_INTERVAL / elapsed if elapsed > 0 else 0, 1)
-                fps_timer_start = time.time()
-
-            results = model.track(frame, persist=True, verbose=args.verbose)
-
-            frame_h, frame_w = frame.shape[:2]
-
-            # show gui with draw regions utility function to debug the detection in region functionality
-            if show_preview:
-                    display = results[0].plot()
-                    display = draw_regions(display, regions, frame_w, frame_h)
-                    cv2.imshow(f"cctv-{cctv_id}", display)
-
-            
-            if not results:
-                continue
-
-            for box in results[0].boxes: # type: ignore
-                x1, y1, x2, y2 = box.xyxy[0].tolist()
-                cls_id   = int(box.cls[0])
-                cls_name = model.names[cls_id]
-                conf     = float(box.conf[0])
-                track_id = int(box.id[0]) if box.id is not None else None
-
-                if track_id is None:
+                if not ret:
+                    # close the broken connection and reinitialize the states for the next iteration, annoying ahh language
+                    # btw, the heartbeat thread still runs in the background here
+                    cap.release()
+                    cap = reconnect_stream(rtsp_url, args.debug, db, cctv_id)
+                    regions = initialize_regions(db, cctv_id)
+                    track_states.clear()
                     continue
 
-                process_detection(db, regions, track_states, track_id, cls_name,
-                                  conf, (x1, y1, x2, y2), cctv_id,
-                                  frame_w, frame_h)
+                frame_count += 1
 
-            now = time.time()
-            if now - last_prune_ts > PRUNE_INTERVAL_SEC:
-                prune_tracks(track_states, max_age_seconds=TRACK_MAX_AGE_SEC)
-                last_prune_ts = now
+                # check ownership of cctv every 100 frames with verify claim (claim_version column) to avoid the split brain issue
+                if frame_count % 100 == 0:
+                    if not verify_claim(db, cctv_id, claim_version):
+                        print(f"[worker cctv={cctv_id}] claim lost, exiting inference loop")
+                        claim_lost = True
+                        break
 
-            if show_preview and cv2.waitKey(1) & 0xFF == ord("q"):
-                break
+                if frame_count % FPS_SAMPLE_INTERVAL == 0:
+                    elapsed = time.time() - fps_timer_start
+                    fps_ref[0] = round(FPS_SAMPLE_INTERVAL / elapsed if elapsed > 0 else 0, 1)
+                    fps_timer_start = time.time()
 
-    finally:
-        # clean up connections, gui windows, and background thread (heartbeat)
-        heartbeat.stop()
-        heartbeat.join(timeout=5)
-        cap.release()
-        if show_preview:
-            cv2.destroyAllWindows()
-        release_camera(db, cctv_id)
-        db.close()
+                results = model.track(frame, persist=True, verbose=args.verbose)
 
+                frame_h, frame_w = frame.shape[:2]
+
+                # show gui with draw regions utility function to debug the detection in region functionality
+                if show_preview:
+                        display = results[0].plot()
+                        display = draw_regions(display, regions, frame_w, frame_h)
+                        cv2.imshow(f"cctv-{cctv_id}", display)
+
+                
+                if not results:
+                    continue
+
+                for box in results[0].boxes: # type: ignore
+                    x1, y1, x2, y2 = box.xyxy[0].tolist()
+                    cls_id   = int(box.cls[0])
+                    cls_name = model.names[cls_id]
+                    conf     = float(box.conf[0])
+                    track_id = int(box.id[0]) if box.id is not None else None
+
+                    if track_id is None:
+                        continue
+
+                    process_detection(db, regions, track_states, track_id, cls_name,
+                                    conf, (x1, y1, x2, y2), cctv_id,
+                                    frame_w, frame_h)
+
+                now = time.time()
+                if now - last_prune_ts > PRUNE_INTERVAL_SEC:
+                    prune_tracks(track_states, max_age_seconds=TRACK_MAX_AGE_SEC)
+                    last_prune_ts = now
+
+                if show_preview and cv2.waitKey(1) & 0xFF == ord("q"):
+                    break
+
+        finally:
+            # clean up connections, gui windows, and background thread (heartbeat)
+            heartbeat.stop()
+            heartbeat.join(timeout=5)
+            cap.release()
+            if show_preview:
+                cv2.destroyAllWindows()
+            if not claim_lost:
+                release_camera(db, cctv_id)
+            
+        if claim_lost:
+            # re-enter the outer loop to claim a new camera
+            continue
+
+        # clean shutdown (q pressed or exception) - exit entirely
+        break
 
 
 def initialize_regions(
