@@ -11,15 +11,19 @@ import time
 import os
 import cv2
 import numpy as np
+from worker.claim import claim_camera, release_camera, verify_claim
+from worker.heartbeat import HeartbeatThread
+from worker.stream import open_stream, reconnect_stream, resolve_rtsp_url
 
-HEARTBEAT_INTERVAL_SEC = 4
-CLAIM_EXPIRY_SEC = 15
-POLL_INTERVAL_SEC = 5
 
 @dataclass
 class TrackState:
     """
     Runtime state associated with a single tracked object.
+
+    This structure stores bookkeeping information that lets the system
+    relate a YOLO tracking ID to database records and to which polygonal
+    regions have already been reported for that track.
     """
     track_id: int
     cls_name: str
@@ -66,7 +70,7 @@ def main() -> None:
     model = YOLO("yolov8s.pt")
 
     cctv, claim_version = claim_camera(db)
-    cctv_id = cctv.id
+    cctv_id: int = cctv.id # type: ignore
 
     rtsp_url = resolve_rtsp_url(cctv, args)
 
@@ -123,7 +127,10 @@ def main() -> None:
                     cv2.imshow(f"cctv-{cctv_id}", display)
 
             
-            for box in results[0].boxes:
+            if not results:
+                continue
+
+            for box in results[0].boxes: # type: ignore
                 x1, y1, x2, y2 = box.xyxy[0].tolist()
                 cls_id   = int(box.cls[0])
                 cls_name = model.names[cls_id]
@@ -160,7 +167,7 @@ def main() -> None:
 def initialize_regions(
     db: Session,
     cctv_id: int,
-) -> list[dict[str, any]]:
+) -> list[dict[str, any]]: # type: ignore
     """
     Load polygonal regions for a given CCTV from the database.
 
@@ -247,7 +254,7 @@ def process_detection(
         db.add(detection)
         db.commit()
         db.refresh(detection)
-        state.db_detection_id = detection.id
+        state.db_detection_id = int(detection.id) # type: ignore
 
         for region in matching_regions:
             state.regions_entered.add(region["id"])
@@ -334,8 +341,6 @@ def is_point_in_polygon(
     return inside
 
 
-if __name__ == "__main__":
-    main()
 
 def draw_regions(
     frame,
@@ -379,255 +384,8 @@ def draw_regions(
 
     return frame
 
-def claim_camera(db: Session) -> tuple[models.CCTV, int]:
-    """
-    Atomically claim an unclaimed or abandoned camera.
-
-    Uses SELECT FOR UPDATE SKIP LOCKED on a subquery so the lock is
-    unambiguous. The claim_version fencing token is incremented on every claim, so
-    that a slow-but-alive worker can detect it lost its claim before
-    writing duplicate detections.
-
-    Blocks indefinitely, polling every POLL_INTERVAL_SEC until a camera
-    becomes available.
-
-    :return: (cctv row, claim_version) tuple.
-    """
-    
-    worker_pid = os.getpid()
-    print(f"[worker pid={worker_pid}] scanning for unclaimed camera...")
-
-    while True:
-        try:
-            db.execute(text("BEGIN"))
-            
-            count = db.execute(text("SELECT COUNT(*) FROM cctvs")).scalar()
-            if count == 0:
-                print(f"[worker pid={worker_pid}] no cameras in database at all - waiting...")
-                time.sleep(POLL_INTERVAL_SEC)
-                continue
-
-            # check for available cctvs using the worker_heartbeats table
-            result = db.execute(text("""
-                SELECT id FROM cctvs
-                WHERE id NOT IN (
-                    SELECT cctv_id FROM worker_heartbeats
-                    WHERE last_seen > NOW() - (:expiry * INTERVAL '1 second')
-                )
-                LIMIT 1
-                FOR UPDATE SKIP LOCKED
-            """), {"expiry": CLAIM_EXPIRY_SEC}).fetchone()
-        
-            # exponential backoff here 
-            if result is None:
-                db.execute(text("ROLLBACK"))
-                print(f"[worker pid={worker_pid}] no camera available, "
-                      f"retrying in {POLL_INTERVAL_SEC}s...")
-                time.sleep(POLL_INTERVAL_SEC)
-                continue
-
-            cctv_id = result[0]
-
-            # claim a cctv and update the worker_heartbeats
-            row = db.execute(text("""
-                INSERT INTO worker_heartbeats
-                    (cctv_id, worker_pid, last_seen, claimed_at, claim_version, status)
-                VALUES
-                    (:cctv_id, :pid, NOW(), NOW(), 1, 'running')
-                ON CONFLICT (cctv_id) DO UPDATE SET
-                    worker_pid    = EXCLUDED.worker_pid,
-                    last_seen     = NOW(),
-                    claimed_at    = NOW(),
-                    claim_version = worker_heartbeats.claim_version + 1,
-                    status        = 'running'
-                RETURNING claim_version
-            """), {"cctv_id": cctv_id, "pid": worker_pid}).fetchone()
-
-            claim_version = row[0]
-
-            # update the status of cctvs TODO: might be redundant
-            db.execute(text(
-                "UPDATE cctvs SET status = 'active' WHERE id = :id"
-            ), {"id": cctv_id})
-
-            db.execute(text("COMMIT"))
-
-        except Exception as e:
-            print(f"[worker pid={worker_pid}] claim attempt failed: {e}")
-            try:
-                db.execute(text("ROLLBACK"))
-            except Exception:
-                pass
-            time.sleep(POLL_INTERVAL_SEC)
-            continue
-
-        cctv = db.query(models.CCTV).filter(models.CCTV.id == cctv_id).first()
-        print(f"[worker pid={worker_pid}] claimed camera id={cctv_id} "
-              f"name='{cctv.name}' claim_version={claim_version}")
-        return cctv, claim_version
 
 
-class HeartbeatThread(threading.Thread):
-    """
-    Sends a heartbeat to the database every HEARTBEAT_INTERVAL_SEC.
 
-    Runs as a background thread so it dies automatically when the main
-    process exits and ot not block the inference loop.
-    """
-
-    def __init__(self, cctv_id: int, fps_ref: list):
-        super().__init__(daemon=True)
-        self._cctv_id = cctv_id
-        self._fps_ref = fps_ref
-        self._stop_event = threading.Event()
-
-    def run(self):
-        db = SessionLocal()
-        try:
-            while not self._stop_event.is_set():
-                try:
-                    db.execute(text("""
-                        UPDATE worker_heartbeats
-                        SET last_seen = NOW(),
-                            frames_per_second = :fps
-                        WHERE cctv_id = :cctv_id
-                    """), {"fps": self._fps_ref[0], "cctv_id": self._cctv_id})
-                    db.commit()
-                except Exception as e:
-                    print(f"[heartbeat cctv={self._cctv_id}] write failed: {e}")
-                    try:
-                        db.rollback()
-                    except Exception:
-                        pass
-                    try:
-                        db.close()
-                    except Exception:
-                        pass
-                    db = SessionLocal()
-
-                self._stop_event.wait(HEARTBEAT_INTERVAL_SEC)
-        finally:
-            db.close()
-
-    def stop(self):
-        self._stop_event.set()
-
-
-def release_camera(db: Session, cctv_id: int) -> None:
-    """
-    Delete the heartbeat row and mark the camera offline on clean exit.
-    Another worker can claim it immediately after.
-    """
-    try:
-        db.execute(text(
-            "DELETE FROM worker_heartbeats WHERE cctv_id = :id"
-        ), {"id": cctv_id})
-        db.execute(text(
-            "UPDATE cctvs SET status = 'offline' WHERE id = :id"
-        ), {"id": cctv_id})
-        db.commit()
-        print(f"[worker] released camera id={cctv_id}")
-    except Exception as e:
-        print(f"[worker] release failed: {e}")
-        db.rollback()
-
-
-def verify_claim(db: Session, cctv_id: int, expected_version: int) -> bool:
-    """
-    Return True if this worker still holds the claim for cctv_id.
-
-    If another worker stole the claim while the database was slow,
-    claim_version will have been incremented and this returns False.
-
-    Returns True on transient database errors to avoid exiting the
-    inference loop on a momentary hiccup.
-    """
-    try:
-        row = db.execute(text(
-            "SELECT claim_version FROM worker_heartbeats WHERE cctv_id = :id"
-        ), {"id": cctv_id}).fetchone()
-    except Exception as e:
-        print(f"[worker] verify_claim failed: {e}")
-        return True
-
-    if row is None or row[0] != expected_version:
-        print(f"[worker] lost claim on cctv={cctv_id} "
-              f"(expected version {expected_version}, got {row[0] if row else 'none'})")
-        return False
-
-    return True
-
-
-def resolve_rtsp_url(cctv: models.CCTV, args: argparse.Namespace) -> str | None:
-    """
-    If cctv.rtsp_url is a full RTSP URL (MediaMTX, etc.), use it as-is.
-    Otherwise treat it as a Dahua-style host/IP and build the default path.
-    Returns None when --debug (webcam instead of RTSP).
-    """
-    if args.debug:
-        return None
-    raw = (cctv.rtsp_url or "").strip()
-    lower = raw.lower()
-    if lower.startswith("rtsp://") or lower.startswith("rtsps://"):
-        return raw
-    return (
-        f"rtsp://{args.username}:{args.password}@{raw}:{args.port}"
-        f"/cam/realmonitor?channel={args.channel}&subtype={1 if args.subtype else 0}"
-    )
-
-
-def open_stream(rtsp_url: str | None, debug: bool) -> cv2.VideoCapture:
-    source = 2 if debug else rtsp_url
-    if source is None:
-        raise ValueError("rtsp_url is None and debug mode is off")
-    cap = cv2.VideoCapture(source)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    return cap
-
-
-def reconnect_stream(
-    rtsp_url: str | None,
-    debug: bool,
-    db: Session,
-    cctv_id: int,
-) -> cv2.VideoCapture:
-    """
-    Update camera status to reconnecting and retry the RTSP connection
-    with exponential backoff. The heartbeat keeps running during this
-    period so the claim stays alive.
-    """
-    try:
-        db.execute(text(
-            "UPDATE cctvs SET status = 'reconnecting' WHERE id = :id"
-        ), {"id": cctv_id})
-        db.execute(text(
-            "UPDATE worker_heartbeats SET status = 'reconnecting' WHERE cctv_id = :id"
-        ), {"id": cctv_id})
-        db.commit()
-    except Exception as e:
-        print(f"[worker cctv={cctv_id}] failed to update reconnecting status: {e}")
-        db.rollback()
-
-    delay = 2
-    attempt = 0
-    while True:
-        attempt += 1
-        print(f"[worker cctv={cctv_id}] reconnect attempt {attempt}, waiting {delay}s...")
-        time.sleep(delay)
-        cap = open_stream(rtsp_url, debug)
-        if cap.isOpened():
-            print(f"[worker cctv={cctv_id}] reconnected")
-            try:
-                db.execute(text(
-                    "UPDATE cctvs SET status = 'active' WHERE id = :id"
-                ), {"id": cctv_id})
-                db.execute(text(
-                    "UPDATE worker_heartbeats SET status = 'running' WHERE cctv_id = :id"
-                ), {"id": cctv_id})
-                db.commit()
-            except Exception as e:
-                print(f"[worker cctv={cctv_id}] failed to update active status: {e}")
-                db.rollback()
-            return cap
-        cap.release()
-        delay = min(delay * 2, 60)
+if __name__ == "__main__":
+    main()
