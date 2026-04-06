@@ -69,6 +69,10 @@ def main() -> None:
     db = SessionLocal()
     model = YOLO("yolov8s.pt")
     
+    dir_buffer: list = []
+    last_flush_ts = time.time()
+    FLUSH_INTERVAL_SEC = 0.3
+    
     while True:
         cctv, claim_version = claim_camera(db)
         cctv_id: int = cctv.id # type: ignore
@@ -146,10 +150,14 @@ def main() -> None:
 
                     process_detection(db, regions, track_states, track_id, cls_name,
                                     conf, (x1, y1, x2, y2), cctv_id,
-                                    frame_w, frame_h)
+                                    frame_w, frame_h, dir_buffer)
 
                 now = time.time()
-                if now - last_prune_ts > PRUNE_INTERVAL_SEC:
+                if now - last_flush_ts >= FLUSH_INTERVAL_SEC:
+                    flush_detection_buffer(db, dir_buffer)
+                    last_flush_ts = now
+                    
+                if now - last_prune_ts >= PRUNE_INTERVAL_SEC:
                     prune_tracks(track_states, max_age_seconds=TRACK_MAX_AGE_SEC)
                     last_prune_ts = now
 
@@ -214,6 +222,7 @@ def process_detection(
     cctv_id: int,
     frame_w: int,
     frame_h: int,
+    dir_buffer: list,
 ) -> None:
     """
     Handle a single detection/tracking result for the current frame.
@@ -268,10 +277,14 @@ def process_detection(
 
         for region in matching_regions:
             state.regions_entered.add(region["id"])
-            db.add(models.DetectionInRegion(
-                region_id=region["id"],
-                detection_id=state.db_detection_id,
-            ))
+            # db.add(models.DetectionInRegion(
+            #     region_id=region["id"],
+            #     detection_id=state.db_detection_id,
+            # ))
+            dir_buffer.append({
+                "region_id": region["id"],
+                "detection_id": state.db_detection_id,
+            })
         db.commit()
         return
 
@@ -281,10 +294,14 @@ def process_detection(
         polygon = [(p["x"], p["y"]) for p in region["region_points"]]
         if is_point_in_polygon(center, polygon) and region_id not in state.regions_entered:
             state.regions_entered.add(region_id)
-            db.add(models.DetectionInRegion(
-                region_id=region_id,
-                detection_id=state.db_detection_id,
-            ))
+            # db.add(models.DetectionInRegion(
+            #     region_id=region_id,
+            #     detection_id=state.db_detection_id,
+            # ))
+            dir_buffer.append({
+                "region_id": region_id,
+                "detection_id": state.db_detection_id,
+            })
             new_entries = True
     if new_entries:
         db.commit()
@@ -394,8 +411,20 @@ def draw_regions(
 
     return frame
 
-
-
-
+def flush_detection_buffer(
+    db: Session,
+    dir_buffer: list,
+) -> None:
+    if not dir_buffer:
+        return
+    items = dir_buffer.copy()
+    dir_buffer.clear()
+    try:
+        db.bulk_insert_mappings(models.DetectionInRegion, items)
+        db.commit()
+    except Exception as e:
+        print(f"[worker] dir flush failed: {e}")
+        db.rollback()
+        
 if __name__ == "__main__":
     main()
