@@ -1,8 +1,8 @@
-from common.database import engine, Base
 from server.routers import user, login, intersection, street, cctv, detection, region
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from common.database import engine, Base
 from dotenv import load_dotenv
+from fastapi import FastAPI
 
 
 @asynccontextmanager
