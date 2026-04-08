@@ -31,11 +31,13 @@ class TrackState:
     regions_entered: Set[int] = field(default_factory=set)
     last_seen_ts: float = field(default_factory=time.time)
 
+PRUNE_INTERVAL_SEC = 10
+TRACK_MAX_AGE_SEC = 30
+FPS_SAMPLE_INTERVAL = 30
+FLUSH_INTERVAL_SEC = 0.3
+MAX_BUFFER_SIZE = 1000
 
 def main() -> None:
-    PRUNE_INTERVAL_SEC = 10
-    TRACK_MAX_AGE_SEC = 30
-    FPS_SAMPLE_INTERVAL = 30
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--username", default="admin")
@@ -71,7 +73,6 @@ def main() -> None:
     
     dir_buffer: list = []
     last_flush_ts = time.time()
-    FLUSH_INTERVAL_SEC = 0.3
     
     while True:
         cctv, claim_version = claim_camera(db)
@@ -153,6 +154,7 @@ def main() -> None:
                                     frame_w, frame_h, dir_buffer)
 
                 now = time.time()
+
                 if now - last_flush_ts >= FLUSH_INTERVAL_SEC:
                     flush_detection_buffer(db, dir_buffer)
                     last_flush_ts = now
@@ -281,6 +283,11 @@ def process_detection(
             #     region_id=region["id"],
             #     detection_id=state.db_detection_id,
             # ))
+            
+            if len(dir_buffer) >= MAX_BUFFER_SIZE:
+                dir_buffer.pop(0)  
+                print("[worker] buffer full, dropping oldest detection")
+
             dir_buffer.append({
                 "region_id": region["id"],
                 "detection_id": state.db_detection_id,
@@ -298,6 +305,11 @@ def process_detection(
             #     region_id=region_id,
             #     detection_id=state.db_detection_id,
             # ))
+            
+            if len(dir_buffer) >= MAX_BUFFER_SIZE:
+                dir_buffer.pop(0)  
+                print("[worker] buffer full, dropping oldest detection")
+
             dir_buffer.append({
                 "region_id": region_id,
                 "detection_id": state.db_detection_id,
