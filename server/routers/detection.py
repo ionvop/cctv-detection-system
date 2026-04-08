@@ -1,7 +1,7 @@
 from server.schemas import DetectionResponse
 from server.utils import log_and_commit, get_current_user
 from fastapi import APIRouter, Depends, HTTPException
-from common.models import User, Intersection, CCTV, Detection
+from common.models import User, Intersection, CCTV, Detection, DetectionInRegion, Region
 from common.database import get_db
 from sqlalchemy.orm import Session
 from typing import Annotated, Optional
@@ -14,7 +14,7 @@ router = APIRouter(
 )
 
 
-@router.get("/cctv/{cctv_id}/", response_model=list[DetectionResponse])
+@router.get("/cctv/{cctv_id}", response_model=list[DetectionResponse])
 def get_detections(
     cctv_id: int,
     db: Annotated[Session, Depends(get_db)],
@@ -35,3 +35,26 @@ def get_detections(
         db_detections = db_detections.filter(Detection.time <= end_time)
 
     return db_detections.all()
+
+
+@router.get("/region/{region_id}", response_model=list[DetectionResponse])
+def get_region_detections(
+    region_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    start_time: Optional[datetime] = None,
+    end_time: Optional[datetime] = None
+) -> list[DetectionResponse]:
+    db_region = db.get(Region, region_id)
+
+    if not db_region:
+        raise HTTPException(status_code=404, detail="Region not found")
+    
+    db_detections = db.query(DetectionInRegion).filter(DetectionInRegion.region_id == region_id)
+
+    if start_time:
+        db_detections = db_detections.filter(DetectionInRegion.time >= start_time)
+
+    if end_time:
+        db_detections = db_detections.filter(DetectionInRegion.time <= end_time)
+
+    return [detection.detection for detection in db_detections.all()]
