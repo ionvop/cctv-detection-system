@@ -1,4 +1,5 @@
 mysql-connector-python
 opencv-python
+python-dotenv
 ultralytics
 sqlalchemy
