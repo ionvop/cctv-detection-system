@@ -28,9 +28,9 @@ SUPER_KEY=your_super_secret_key
 
 ### 2. Database Configuration
 
-Located in `common/database.py`:
+The database connection is defined in the environment variable `DATABASE_URL`. Add the following line to your `.env` file:
 
-```python
+```
 DATABASE_URL = "mysql+mysqlconnector://root:@localhost:3306/_20260301"
 ```
 
