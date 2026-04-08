@@ -1,10 +1,10 @@
+from common.models import CCTV, Region, Detection, DetectionInRegion
 from common.database import Base, SessionLocal, engine
 from dataclasses import dataclass, field
+from argparse import ArgumentParser
 from sqlalchemy.orm import Session
 from typing import Set, Optional
 from ultralytics import YOLO
-from common import models
-import argparse
 import time
 import cv2
 
@@ -28,21 +28,15 @@ class TrackState:
 def main() -> None:
     PRUNE_INTERVAL_SEC = 10
     TRACK_MAX_AGE_SEC = 30
-    parser = argparse.ArgumentParser()
+    parser = ArgumentParser()
     parser.add_argument("--cctv", type=int, help="CCTV ID", default=1)
-    parser.add_argument("--username", help="Username", default="admin")
-    parser.add_argument("--password", help="Password", default="admin")
-    parser.add_argument("--ip", help="IP address", default="244.178.44.111")
-    parser.add_argument("--port", type=int, help="Port", default=554)
-    parser.add_argument("--channel", type=int, help="Channel", default=1)
-    parser.add_argument("--subtype", action="store_true")
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
+    cctv = db.get(CCTV, args.cctv)
     model = YOLO("yolov8s.pt")
-    rtsp_url = f"rtsp://{args.username}:{args.password}@{args.ip}:{args.port}/cam/realmonitor?channel={args.channel}&subtype={1 if args.subtype else 0}"
-    cap = cv2.VideoCapture(2 if args.debug else rtsp_url)
+    cap = cv2.VideoCapture(2 if args.debug else cctv.rtsp_url)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     regions = initialize_regions(db, args.cctv)
     track_states: dict[int, TrackState] = {}
@@ -96,7 +90,7 @@ def initialize_regions(
              ``id``, ``x``, and ``y``).
     """
     regions = []
-    db_regions = db.query(models.Region).filter(models.Region.cctv_id == cctv_id).all()
+    db_regions = db.query(Region).filter(Region.cctv_id == cctv_id).all()
 
     for db_region in db_regions:
         region = {
@@ -149,10 +143,8 @@ def process_detection(
     state.last_seen_ts = time.time()
 
     if state.db_detection_id is None:
-        detection = models.Detection(
+        detection = Detection(
             cctv_id=cctv_id,
-            x=(x1 + x2) / 2,
-            y=(y1 + y2) / 2,
             type=cls_name
         )
 
@@ -170,7 +162,7 @@ def process_detection(
             if region_id not in state.regions_entered:
                 state.regions_entered.add(region_id)
 
-                detection_in_region = models.DetectionInRegion(
+                detection_in_region = DetectionInRegion(
                     region_id=region_id,
                     detection_id=state.db_detection_id
                 )
