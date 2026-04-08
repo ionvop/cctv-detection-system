@@ -1,9 +1,10 @@
-from common.models import CCTV, Detection, DetectionInRegion, Region
-from fastapi import APIRouter, Depends, HTTPException
 from server.schemas import DetectionResponse
-from typing import Annotated, Optional
+from server.utils import log_and_commit, get_current_user
+from fastapi import APIRouter, Depends, HTTPException
+from common.models import User, Intersection, CCTV, Detection, DetectionInRegion, Region
 from common.database import get_db
 from sqlalchemy.orm import Session
+from typing import Annotated, Optional
 from datetime import datetime
 
 
@@ -28,10 +29,10 @@ def get_detections(
     db_detections = db.query(Detection).filter(Detection.cctv_id == cctv_id)
 
     if start_time:
-        db_detections = db_detections.filter(Detection.created_at >= start_time)
+        db_detections = db_detections.filter(Detection.time >= start_time)
 
     if end_time:
-        db_detections = db_detections.filter(Detection.created_at <= end_time)
+        db_detections = db_detections.filter(Detection.time <= end_time)
 
     return db_detections.all()
 
@@ -51,9 +52,9 @@ def get_region_detections(
     db_detections = db.query(DetectionInRegion).filter(DetectionInRegion.region_id == region_id)
 
     if start_time:
-        db_detections = db_detections.filter(DetectionInRegion.created_at >= start_time)
+        db_detections = db_detections.filter(DetectionInRegion.time >= start_time)
 
     if end_time:
-        db_detections = db_detections.filter(DetectionInRegion.created_at <= end_time)
+        db_detections = db_detections.filter(DetectionInRegion.time <= end_time)
 
     return [detection.detection for detection in db_detections.all()]
