@@ -25,6 +25,8 @@ class UserResponse(BaseModel):
 
 class IntersectionBase(BaseModel):
     name: str
+    latitude: float
+    longitude: float
 
 
 class IntersectionCreate(IntersectionBase):
@@ -33,6 +35,8 @@ class IntersectionCreate(IntersectionBase):
 
 class IntersectionUpdate(BaseModel):
     name: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class IntersectionResponse(IntersectionBase):
@@ -93,7 +97,6 @@ class DetectionResponse(DetectionBase):
 
 
 class RegionPointBase(BaseModel):
-    region_id: int
     x: int
     y: int
 
@@ -102,6 +105,16 @@ class RegionBase(BaseModel):
     cctv_id: int
     street_id: int
     region_points: list[RegionPointBase]
+
+
+class RegionCreate(RegionBase):
+    pass
+
+
+class RegionUpdate(BaseModel):
+    cctv_id: Optional[int] = None
+    street_id: Optional[int] = None
+    region_points: Optional[list[RegionPointBase]] = None
 
 
 class RegionResponse(RegionBase):
