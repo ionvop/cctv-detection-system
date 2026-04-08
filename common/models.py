@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float
 from sqlalchemy.orm import relationship
 from common.database import Base
 from sqlalchemy.sql import func
@@ -24,6 +24,8 @@ class Intersection(Base):
     __tablename__ = "intersections"
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=False)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
     time = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     streets = relationship("Street", back_populates="intersection", cascade="all, delete")
     cctvs = relationship("CCTV", back_populates="intersection", cascade="all, delete")
