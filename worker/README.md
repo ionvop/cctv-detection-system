@@ -37,17 +37,13 @@ worker/
 
 ### Configuration
 
-Edit the database connection in:
+The database connection is defined in the environment variable `DATABASE_URL`. Add the following line to your `.env` file:
 
-```python
+```
 DATABASE_URL = "mysql+mysqlconnector://root:@localhost:3306/_20260301"
 ```
 
-Make sure:
-
-* MySQL is running
-* Database exists (`_20260301`)
-* Credentials are correct
+Update credentials as needed.
 
 ---
 
