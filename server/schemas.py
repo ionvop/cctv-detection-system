@@ -19,7 +19,7 @@ class UserUpdate(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
-    time: datetime
+    created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -41,7 +41,7 @@ class IntersectionUpdate(BaseModel):
 
 class IntersectionResponse(IntersectionBase):
     id: int
-    time: datetime
+    created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -60,7 +60,7 @@ class StreetUpdate(BaseModel):
 
 class StreetResponse(StreetBase):
     id: int
-    time: datetime
+    created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -81,7 +81,7 @@ class CCTVUpdate(BaseModel):
 
 class CCTVResponse(CCTVBase):
     id: int
-    time: datetime
+    created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -92,7 +92,7 @@ class DetectionBase(BaseModel):
 
 class DetectionResponse(DetectionBase):
     id: int
-    time: datetime
+    created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -119,5 +119,5 @@ class RegionUpdate(BaseModel):
 
 class RegionResponse(RegionBase):
     id: int
-    time: datetime
+    created_at: datetime
     model_config = ConfigDict(from_attributes=True)
