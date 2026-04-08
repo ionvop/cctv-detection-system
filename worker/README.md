@@ -101,7 +101,7 @@ It will auto-download via Ultralytics if not present.
 
 ---
 
-## ▶️ Running the Worker
+## Running the Worker
 
 ```bash
 python worker/main.py --cctv 1
