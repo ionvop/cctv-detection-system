@@ -19,7 +19,7 @@ def create_intersection(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> IntersectionResponse:
-    db_intersection = Intersection(name=intersection.name)
+    db_intersection = Intersection(name=intersection.name, latitude=intersection.latitude, longitude=intersection.longitude)
     db.add(db_intersection)
     log_and_commit(f"User {user.username} created intersection {db_intersection.name}", db)
     db.refresh(db_intersection)
@@ -57,10 +57,21 @@ def update_intersection(
 
     if not db_intersection:
         raise HTTPException(status_code=404, detail="Intersection not found")
+    
+    message = f"User {user.username} updated intersection {db_intersection.name}"
 
-    old_name = db_intersection.name
-    db_intersection.name = intersection.name
-    log_and_commit(f"User {user.username} updated intersection {old_name} to {db_intersection.name}", db)
+    if intersection.name:
+        old_name = db_intersection.name
+        db_intersection.name = intersection.name
+        message = f"User {user.username} updated intersection {old_name} to {db_intersection.name}"
+    
+    if intersection.latitude:
+        db_intersection.latitude = intersection.latitude
+
+    if intersection.longitude:
+        db_intersection.longitude = intersection.longitude
+
+    log_and_commit(message, db)
     db.refresh(db_intersection)
     return db_intersection
 
