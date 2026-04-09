@@ -59,8 +59,16 @@ def update_cctv(
         raise HTTPException(status_code=404, detail="CCTV not found")
 
     old_name = db_cctv.name
-    db_cctv.name = cctv.name
-    log_and_commit(f"User {user.username} updated cctv {old_name} to {db_cctv.name}", db)
+    message = f"User {user.username} updated cctv {old_name}"
+
+    if cctv.name is not None:
+        db_cctv.name = cctv.name
+        message = f"User {user.username} updated cctv {old_name} to {db_cctv.name}"
+
+    if cctv.rtsp_url is not None:
+        db_cctv.rtsp_url = cctv.rtsp_url
+
+    log_and_commit(message, db)
     db.refresh(db_cctv)
     return db_cctv
 
