@@ -15,7 +15,7 @@ def test_create_intersection_requires_auth(client):
     resp = client.post("/intersections/", json={
         "name": "Main & 1st", "latitude": 7.07, "longitude": 125.6
     })
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 def test_get_intersections_empty(client):
@@ -66,7 +66,7 @@ def test_update_intersection_not_found(auth_client):
 
 def test_update_intersection_requires_auth(client):
     resp = client.put("/intersections/1", json={"name": "X"})
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 def test_delete_intersection(auth_client, client):
@@ -85,4 +85,4 @@ def test_delete_intersection_not_found(auth_client):
 
 def test_delete_intersection_requires_auth(client):
     resp = client.delete("/intersections/1")
-    assert resp.status_code == 403
+    assert resp.status_code == 401
