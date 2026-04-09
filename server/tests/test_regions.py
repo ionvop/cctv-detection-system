@@ -46,7 +46,7 @@ def test_create_region_requires_auth(client, cctv, street):
         "street_id": street["id"],
         "region_points": SAMPLE_POINTS
     })
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 def test_get_regions_empty(client):
@@ -106,7 +106,7 @@ def test_update_region_requires_auth(client, auth_client, cctv, street):
     resp = client.put(f"/regions/{created['id']}", json={
         "cctv_id": cctv["id"], "street_id": street["id"], "region_points": SAMPLE_POINTS
     })
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 def test_delete_cctv_cascades_to_regions(auth_client, client, cctv, street):
