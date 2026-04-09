@@ -7,7 +7,6 @@ from typing import Annotated
 from os import getenv
 
 
-SUPER_KEY = getenv("SUPER_KEY")
 bearer_scheme = HTTPBearer()
 
 
@@ -20,10 +19,12 @@ def get_bearer_token(
 def require_superuser(
     token: Annotated[str, Depends(get_bearer_token)]
 ) -> None:
-    if not SUPER_KEY:
+    super_key = getenv("SUPER_KEY")
+
+    if not super_key:
         raise HTTPException(status_code=500, detail="Superuser key not set")
 
-    if token != SUPER_KEY:
+    if token != super_key:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
