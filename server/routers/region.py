@@ -25,7 +25,7 @@ def create_region(
         db_region.region_points.append(RegionPoint(x=region_point.x, y=region_point.y))
 
     db.add(db_region)
-    db.commit()
+    db.flush()
     db.refresh(db_region)
     log_and_commit(f"User {user.username} created region for street {db_region.street.name}", db)
     return db_region
@@ -38,7 +38,7 @@ def get_regions(
     return db.query(Region).all()
 
 
-@router.get("/{region_id}", response_model=list[RegionResponse])
+@router.get("/{region_id}", response_model=RegionResponse)
 def get_region(
     region_id: int,
     db: Annotated[Session, Depends(get_db)],
@@ -63,19 +63,21 @@ def update_region(
     if not db_region:
         raise HTTPException(status_code=404, detail="Region not found")
 
-    if region.cctv_id:
+    if region.cctv_id is not None:
         db_region.cctv_id = region.cctv_id
 
-    if region.street_id:
+    if region.street_id is not None:
         db_region.street_id = region.street_id
 
-    if region.region_points:
-        db_region.region_points.clear()
+    if region.region_points is not None:
+        for rp in list(db_region.region_points):
+            db.delete(rp)
+        db.flush()
 
         for region_point in region.region_points:
             db_region.region_points.append(RegionPoint(x=region_point.x, y=region_point.y))
 
-    db.commit()
+    db.flush()
     db.refresh(db_region)
     log_and_commit(f"User {user.username} updated region for street {db_region.street.name}", db)
     return db_region
