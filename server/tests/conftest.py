@@ -51,13 +51,18 @@ def superuser_client(client):
 
 
 @pytest.fixture()
-def auth_client(superuser_client, client, db):
-    """Creates a user, logs in, and returns an authenticated client."""
-    # Create user via superuser endpoint
-    superuser_client.post("/users/", json={"username": "testuser", "password": "testpass"})
+def auth_client(superuser_client, db):
+    """Creates a user, logs in, and returns a separate authenticated client.
 
-    # Log in to get a token
-    resp = client.post("/login/", json={"username": "testuser", "password": "testpass"})
+    Uses a new TestClient so the shared `client` fixture is not mutated —
+    tests that request both `client` (unauthenticated) and a fixture that
+    depends on `auth_client` will therefore keep a clean unauthenticated client.
+    """
+    os.environ["SUPER_KEY"] = "test-super-key"
+    superuser_client.post("/users/", json={"username": "testuser", "password": "testpass"})
+    resp = superuser_client.post("/login/", json={"username": "testuser", "password": "testpass"})
     token = resp.json()["token"]
-    client.headers.update({"Authorization": f"Bearer {token}"})
-    return client
+
+    with TestClient(app) as auth_c:
+        auth_c.headers.update({"Authorization": f"Bearer {token}"})
+        yield auth_c
