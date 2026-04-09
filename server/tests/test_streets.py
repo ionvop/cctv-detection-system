@@ -22,7 +22,7 @@ def test_create_street_requires_auth(client, intersection):
     resp = client.post("/streets/", json={
         "intersection_id": intersection["id"], "name": "Main St"
     })
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 def test_get_streets_empty(client):
@@ -69,7 +69,7 @@ def test_update_street_not_found(auth_client):
 
 def test_update_street_requires_auth(client):
     resp = client.put("/streets/1", json={"name": "X"})
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 def test_delete_street(auth_client, client, intersection):
@@ -88,7 +88,7 @@ def test_delete_street_not_found(auth_client):
 
 def test_delete_street_requires_auth(client):
     resp = client.delete("/streets/1")
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 def test_delete_intersection_cascades_to_streets(auth_client, client, intersection):
