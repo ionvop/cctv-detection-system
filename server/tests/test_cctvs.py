@@ -36,7 +36,7 @@ def test_create_cctv_requires_auth(client, intersection):
         "name": "Cam 1",
         "rtsp_url": "rtsp://example.com/stream1"
     })
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 def test_get_cctvs_empty(client):
@@ -80,7 +80,7 @@ def test_update_cctv_not_found(auth_client):
 
 def test_update_cctv_requires_auth(client, cctv):
     resp = client.put(f"/cctvs/{cctv['id']}", json={"name": "X"})
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 def test_delete_cctv(auth_client, client, cctv):
@@ -96,7 +96,7 @@ def test_delete_cctv_not_found(auth_client):
 
 def test_delete_cctv_requires_auth(client, cctv):
     resp = client.delete(f"/cctvs/{cctv['id']}")
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 def test_delete_intersection_cascades_to_cctvs(auth_client, client, intersection, cctv):
