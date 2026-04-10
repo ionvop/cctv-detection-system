@@ -1,5 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
+ALTER USER postgres WITH PASSWORD 'postgres';
 
 CREATE TABLE IF NOT EXISTS users (
     id       SERIAL PRIMARY KEY,
@@ -191,7 +192,7 @@ WITH NO DATA;
 
 SELECT add_continuous_aggregate_policy(
     'aggregation_summaries',
-    start_offset      => INTERVAL '2 minutes',
+    start_offset      => INTERVAL '10 minutes',
     end_offset        => INTERVAL '1 minute',
     schedule_interval => INTERVAL '1 minute',
     if_not_exists     => TRUE
