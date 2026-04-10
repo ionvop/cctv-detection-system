@@ -1,6 +1,8 @@
-opencv-python-headless
 ultralytics
 sqlalchemy
 psycopg2-binary
 rq
 redis
+opencv-python
+python-dotenv
+pywebpush
