@@ -272,9 +272,16 @@ def process_detection(
             x2=round(x2 / frame_w, 4),
             y2=round(y2 / frame_h, 4),
         )
-        db.add(detection)
-        db.commit()
-        db.refresh(detection)
+        
+        try:
+            db.add(detection)
+            db.commit()
+            db.refresh(detection)
+        except Exception as e:
+            print(f"[worker] detection write failed: {e}")
+            db.rollback()
+            return 
+        
         state.db_detection_id = int(detection.id) # type: ignore
 
         for region in matching_regions:
@@ -423,6 +430,21 @@ def draw_regions(
 
     return frame
 
+def recover_session(db: Session) -> Session:
+    """
+    Roll back and close the broken session, return a fresh one.
+    Call this after any OperationalError on the main session.
+    """
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    try:
+        db.close()
+    except Exception:
+        pass
+    return SessionLocal()
+
 def flush_detection_buffer(
     db: Session,
     dir_buffer: list,
@@ -432,7 +454,7 @@ def flush_detection_buffer(
     items = dir_buffer.copy()
     dir_buffer.clear()
     try:
-        db.bulk_insert_mappings(models.DetectionInRegion, items)
+        db.bulk_insert_mappings(models.DetectionInRegion, items) # type: ignore
         db.commit()
     except Exception as e:
         print(f"[worker] dir flush failed: {e}")
