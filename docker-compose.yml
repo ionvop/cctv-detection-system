@@ -78,6 +78,10 @@ services:
     environment:
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/traffic
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - upload_data:/app/uploads
     depends_on:
       redis:
         condition: service_healthy
@@ -92,10 +96,18 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/traffic
+      REDIS_URL: redis://redis:6379
+      UPLOAD_DIR: /app/uploads
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+    volumes:
+      - upload_data:/app/uploads
     ports:
       - "8000:8000"
     depends_on:
       pgbouncer:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   worker:
@@ -116,3 +128,4 @@ networks:
 
 volumes:
   timescale_data:
+  upload_data:
