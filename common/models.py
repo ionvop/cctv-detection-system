@@ -63,11 +63,10 @@ class CCTV(Base):
     status          = Column(String(50),  nullable=False, default="offline")
     is_being_viewed = Column(Boolean,     nullable=False, default=False)
     time            = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
     intersection = relationship("Intersection", back_populates="cctvs")
-    detections   = relationship("Detection",      back_populates="cctv",    cascade="all, delete")
-    regions      = relationship("Region",         back_populates="cctv",    cascade="all, delete")
-    heartbeat    = relationship("WorkerHeartbeat", back_populates="cctv",   uselist=False, cascade="all, delete")
+    detections   = relationship("Detection",       back_populates="cctv",  cascade="all, delete")
+    regions      = relationship("Region",          back_populates="cctv",  cascade="all, delete")
+    heartbeat    = relationship("WorkerHeartbeat", back_populates="cctv",  uselist=False, cascade="all, delete")
 
 
 class WorkerHeartbeat(Base):
@@ -75,13 +74,12 @@ class WorkerHeartbeat(Base):
 
     id                = Column(Integer, primary_key=True, autoincrement=True)
     cctv_id           = Column(Integer, ForeignKey("cctvs.id", ondelete="CASCADE"), nullable=False, unique=True)
-    worker_pid        = Column(Integer,     nullable=False)
+    worker_pid        = Column(Integer, nullable=False)
     last_seen         = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     claimed_at        = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    claim_version     = Column(Integer,     nullable=False, default=0)
-    status            = Column(String(50),  nullable=False, default="running")
-    frames_per_second = Column(Float,       nullable=True)
-
+    claim_version     = Column(Integer, nullable=False, default=0)
+    status            = Column(String(50), nullable=False, default="running")
+    frames_per_second = Column(Float, nullable=True)
     cctv = relationship("CCTV", back_populates="heartbeat")
 
 
@@ -92,10 +90,9 @@ class Region(Base):
     cctv_id   = Column(Integer, ForeignKey("cctvs.id",   ondelete="CASCADE"), nullable=False)
     street_id = Column(Integer, ForeignKey("streets.id", ondelete="CASCADE"), nullable=False)
     time      = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    cctv          = relationship("CCTV",   back_populates="regions")
-    street        = relationship("Street", back_populates="regions")
-    region_points = relationship("RegionPoint",       back_populates="region", cascade="all, delete")
+    cctv                  = relationship("CCTV",   back_populates="regions")
+    street                = relationship("Street", back_populates="regions")
+    region_points         = relationship("RegionPoint",       back_populates="region", cascade="all, delete")
     detections_in_regions = relationship("DetectionInRegion", back_populates="region", cascade="all, delete")
 
 
@@ -104,10 +101,9 @@ class RegionPoint(Base):
 
     id        = Column(Integer, primary_key=True, autoincrement=True)
     region_id = Column(Integer, ForeignKey("regions.id", ondelete="CASCADE"), nullable=False)
-    x         = Column(Float, nullable=False)
-    y         = Column(Float, nullable=False)
+    x         = Column(Float, nullable=False)  # normalized 0-1, NOT pixel coordinates
+    y         = Column(Float, nullable=False)  # normalized 0-1, NOT pixel coordinates
     time      = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
     region = relationship("Region", back_populates="region_points")
 
 
@@ -117,13 +113,13 @@ class Detection(Base):
     id          = Column(BigInteger, primary_key=True, autoincrement=True)
     cctv_id     = Column(Integer, ForeignKey("cctvs.id",  ondelete="CASCADE"),  nullable=False)
     video_id    = Column(Integer, ForeignKey("videos.id", ondelete="SET NULL"), nullable=True)
-    track_id    = Column(Integer,     nullable=True)
-    object_type = Column(String(50),  nullable=False)
-    confidence  = Column(Float,       nullable=False)
-    x1          = Column(Float,       nullable=False)
-    y1          = Column(Float,       nullable=False)
-    x2          = Column(Float,       nullable=False)
-    y2          = Column(Float,       nullable=False)
+    track_id    = Column(Integer,    nullable=True)
+    object_type = Column(String(50), nullable=False)
+    confidence  = Column(Float,      nullable=False)
+    x1          = Column(Float,      nullable=False)
+    y1          = Column(Float,      nullable=False)
+    x2          = Column(Float,      nullable=False)
+    y2          = Column(Float,      nullable=False)
     time        = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     cctv                  = relationship("CCTV",  back_populates="detections")
@@ -144,11 +140,14 @@ class DetectionInRegion(Base):
     region_id    = Column(Integer,    ForeignKey("regions.id", ondelete="CASCADE"), nullable=False)
     detection_id = Column(BigInteger, nullable=False)
     time         = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
     region    = relationship("Region",    back_populates="detections_in_regions")
-    detection = relationship("Detection", back_populates="detections_in_regions",
-                             primaryjoin="DetectionInRegion.detection_id == Detection.id",
-                             foreign_keys="DetectionInRegion.detection_id")
+    detection = relationship(
+        "Detection",
+        back_populates="detections_in_regions",
+        primaryjoin="DetectionInRegion.detection_id == Detection.id",
+        foreign_keys="DetectionInRegion.detection_id",
+    )
+
 
 class Video(Base):
     __tablename__ = "videos"
@@ -170,6 +169,7 @@ class Video(Base):
     uploader     = relationship("User",         back_populates="uploaded_videos", foreign_keys=[uploaded_by])
     detections   = relationship("Detection",    back_populates="video")
 
+
 class Recommendation(Base):
     __tablename__ = "recommendations"
 
@@ -186,6 +186,7 @@ class Recommendation(Base):
     generated_at         = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     intersection = relationship("Intersection", back_populates="recommendations")
+
 
 class PushSubscription(Base):
     __tablename__ = "push_subscriptions"
@@ -208,4 +209,4 @@ class AggregationSummary(Base):
     street_id       = Column(Integer,     primary_key=True)
     object_type     = Column(String(50),  primary_key=True)
     window_start    = Column(DateTime(timezone=True), primary_key=True)
-    count           = Column(Integer,     nullable=False)
+    count           = Column(Integer,    nullable=False)
