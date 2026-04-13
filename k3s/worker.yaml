@@ -1,0 +1,44 @@
+# RTSP detection worker pool — each replica claims one camera.
+# Set replicas to the number of active cameras.
+# Requires NVIDIA Container Toolkit + device plugin on the node (see nvidia-device-plugin.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: eyegila
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: eyegila/worker:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: eyegila-secret
+                  key: DATABASE_URL
+          resources:
+            requests:
+              memory: 2Gi
+              cpu: 1
+              nvidia.com/gpu: "1"
+            limits:
+              memory: 4Gi
+              cpu: 2
+              nvidia.com/gpu: "1"
+      # Only schedule on nodes that have a GPU
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
