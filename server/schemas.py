@@ -25,6 +25,8 @@ class UserResponse(BaseModel):
 
 class IntersectionBase(BaseModel):
     name: str
+    latitude: float
+    longitude: float
 
 
 class IntersectionCreate(IntersectionBase):
@@ -33,9 +35,89 @@ class IntersectionCreate(IntersectionBase):
 
 class IntersectionUpdate(BaseModel):
     name: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class IntersectionResponse(IntersectionBase):
+    id: int
+    time: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class StreetBase(BaseModel):
+    intersection_id: int
+    name: str
+
+
+class StreetCreate(StreetBase):
+    pass
+
+
+class StreetUpdate(BaseModel):
+    name: Optional[str] = None
+
+
+class StreetResponse(StreetBase):
+    id: int
+    time: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CCTVBase(BaseModel):
+    intersection_id: int
+    name: str
+    rtsp_url: str
+
+
+class IntersectionCreate(IntersectionBase):
+    pass
+
+
+class IntersectionUpdate(BaseModel):
+    name: Optional[str] = None
+    rtsp_url: Optional[str] = None
+
+
+class IntersectionResponse(IntersectionBase):
+    id: int
+    time: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DetectionBase(BaseModel):
+    cctv_id: int
+    type: str
+
+
+class DetectionResponse(DetectionBase):
+    id: int
+    time: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RegionPointBase(BaseModel):
+    x: int
+    y: int
+
+
+class RegionBase(BaseModel):
+    cctv_id: int
+    street_id: int
+    region_points: list[RegionPointBase]
+
+
+class RegionCreate(RegionBase):
+    pass
+
+
+class RegionUpdate(BaseModel):
+    cctv_id: Optional[int] = None
+    street_id: Optional[int] = None
+    region_points: Optional[list[RegionPointBase]] = None
+
+
+class RegionResponse(RegionBase):
     id: int
     time: datetime
     model_config = ConfigDict(from_attributes=True)

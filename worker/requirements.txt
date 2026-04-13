@@ -1,3 +1,4 @@
+python-dotenv
 ultralytics
 sqlalchemy
 psycopg2-binary

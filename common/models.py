@@ -121,7 +121,7 @@ class Detection(Base):
     x2          = Column(Float,      nullable=False)
     y2          = Column(Float,      nullable=False)
     time        = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
+    type = Column(String(255), nullable=False)
     cctv                  = relationship("CCTV",  back_populates="detections")
     video                 = relationship("Video", back_populates="detections")
     detections_in_regions = relationship(

@@ -9,328 +9,631 @@ The project consists of two components:
 1. **Server** – REST API for managing CCTV cameras and retrieving detection data.
 2. **Worker** – A computer vision worker that reads video from a webcam, runs **YOLOv8 object detection**, and stores detections in the database.
 
+# CCTV Server
+
+A FastAPI-based backend for managing intersections, streets, CCTV cameras, regions, and detections.
+
 ---
 
-# Architecture
+## Tech Stack
 
+* **FastAPI** – Web framework
+* **SQLAlchemy** – ORM
+* **MySQL** – Database
+* **Pydantic** – Data validation
+* **bcrypt** – Password hashing
+
+---
+
+## Setup
+
+### 1. Environment Variables
+
+Create a `.env` file:
+
+```env
+SUPER_KEY=your_super_secret_key
 ```
 
-+-------------+        +-------------+        +-----------+
-|   Webcam    | -----> |   Worker    | -----> |  MySQL DB |
-| (OpenCV)    |        | YOLOv8      |        |           |
-+-------------+        +-------------+        +-----------+
-|
-v
-+-------------+
-|   FastAPI   |
-|    Server   |
-+-------------+
+---
 
+### 2. Database Configuration
+
+Located in `common/database.py`:
+
+```python
+DATABASE_URL = "mysql+mysqlconnector://root:@localhost:3306/_20260301"
 ```
 
-### Components
-
-#### Server
-- Built with **FastAPI**
-- Handles API requests
-- Manages CCTV records
-- Provides detection query endpoints
-
-#### Worker
-- Uses **OpenCV** for video capture
-- Uses **YOLOv8 (Ultralytics)** for object detection
-- Saves detection coordinates to the database
+Update credentials as needed.
 
 ---
 
-# Database Schema
-
-### `cctvs`
-| Field | Type | Description |
-|------|------|-------------|
-| id | int | Primary key |
-| name | string | CCTV name |
-| time | int | Unix timestamp |
-
-### `detections`
-| Field | Type | Description |
-|------|------|-------------|
-| id | int | Primary key |
-| cctv_id | int | CCTV reference |
-| time | int | Detection timestamp |
-
-### `coords`
-| Field | Type | Description |
-|------|------|-------------|
-| id | int | Primary key |
-| detection_id | int | Detection reference |
-| x | float | Normalized X coordinate (0–1) |
-| y | float | Normalized Y coordinate (0–1) |
-| time | int | Timestamp |
-
-Coordinates are normalized relative to frame width/height.
-
----
-
-# Project Structure
-
-```
-
-project/
-│
-├── server/
-│   ├── main.py
-│   ├── database.py
-│   ├── models.py
-│   ├── schemas.py
-│   ├── requirements.txt
-│   └── routers/
-│       ├── cctv.py
-│       └── detections.py
-│
-└── worker/
-    ├── main.py
-    ├── database.py
-    ├── models.py
-    └── requirements.txt
-
-````
-
----
-
-# Installation
-
-## 1. Clone the Repository
+### 3. Run the Server
 
 ```bash
-git clone https://github.com/ionvop/cctv-detection-system.git
-cd cctv-detection-system
-````
-
----
-
-# Database Setup
-
-Create a MySQL database:
-
-```sql
-CREATE DATABASE your_database;
-```
-
-Default connection string:
-
-```
-mysql+mysqlconnector://root:@localhost:3306/your_database
-```
-
-Modify `DATABASE_URL` in:
-
-```
-server/database.py
-worker/database.py
-```
-
-if needed.
-
----
-
-# Server Setup
-
-## Install dependencies
-
-```bash
-cd server
-pip install -r requirements.txt
-```
-
-## Run the server
-
-```bash
-fastapi dev main.py
-```
-
-or
-
-```bash
-uvicorn main:app --reload
-```
-
-Server will start at:
-
-```
-http://localhost:8000
-```
-
-Interactive API docs:
-
-```
-http://localhost:8000/docs
+uvicorn server.main:app --reload
 ```
 
 ---
 
-# Worker Setup
+## Authentication
 
-## Install dependencies
+### Superuser Access
 
-```bash
-cd worker
-pip install -r requirements.txt
+Used for `/users` endpoints.
+
 ```
-
-YOLOv8 weights (`yolov8s.pt`) is not included in the repository.
-
-## Run the worker
-
-```bash
-python main.py
+Authorization: Bearer <SUPER_KEY>
 ```
-
-The worker will:
-
-1. Open your webcam
-2. Detect objects using YOLOv8
-3. Track the **maximum number of detections within 1 second**
-4. Save normalized coordinates to the database
 
 ---
 
-# API Endpoints
+### User Authentication
 
-## CCTV
+1. Login:
 
-### Create CCTV
+```
+POST /login
+```
+
+2. Use returned token:
+
+```
+Authorization: Bearer <token>
+```
+
+---
+
+## Data Model Overview
+
+```
+Intersection
+ ├── Streets
+ │     └── Regions
+ │           ├── RegionPoints
+ │           └── DetectionInRegion
+ └── CCTVs
+       └── Detections
+```
+
+---
+
+## API Endpoints
+
+---
+
+# Users (Superuser Only)
+
+## Create User
+
+```
+POST /users
+```
+
+**Body**
+
+```json
+{
+  "username": "admin",
+  "password": "password"
+}
+```
+
+---
+
+## Get All Users
+
+```
+GET /users
+```
+
+---
+
+## Get User
+
+```
+GET /users/{user_id}
+```
+
+---
+
+## Update User
+
+```
+PUT /users/{user_id}
+```
+
+---
+
+## Delete User
+
+```
+DELETE /users/{user_id}
+```
+
+---
+
+# Login
+
+## Login
+
+```
+POST /login
+```
+
+**Response**
+
+```json
+{
+  "token": "session_token"
+}
+```
+
+---
+
+## Logout
+
+```
+DELETE /login
+```
+
+---
+
+# Intersections
+
+## Create
+
+```
+POST /intersections
+```
+
+```json
+{
+  "name": "Intersection A",
+  "latitude": 7.123,
+  "longitude": 125.456
+}
+```
+
+---
+
+## Get All
+
+```
+GET /intersections
+```
+
+## Get One
+
+```
+GET /intersections/{id}
+```
+
+## Update
+
+```
+PUT /intersections/{id}
+```
+
+## Delete
+
+```
+DELETE /intersections/{id}
+```
+
+---
+
+# Streets
+
+## Create
+
+```
+POST /streets
+```
+
+```json
+{
+  "intersection_id": 1,
+  "name": "Main Street"
+}
+```
+
+---
+
+## Get All
+
+```
+GET /streets
+```
+
+## Get One
+
+```
+GET /streets/{id}
+```
+
+## Update
+
+```
+PUT /streets/{id}
+```
+
+## Delete
+
+```
+DELETE /streets/{id}
+```
+
+---
+
+# CCTVs
+
+## Create
 
 ```
 POST /cctvs
 ```
 
-Body:
-
 ```json
 {
-  "name": "Entrance Camera"
+  "intersection_id": 1,
+  "name": "Camera 1",
+  "rtsp_url": "rtsp://..."
 }
 ```
 
 ---
 
-### Get All CCTVs
+## Get All
 
 ```
 GET /cctvs
 ```
 
+## Get One
+
+```
+GET /cctvs/{id}
+```
+
+## Update
+
+```
+PUT /cctvs/{id}
+```
+
+## Delete
+
+```
+DELETE /cctvs/{id}
+```
+
 ---
 
-### Get CCTV by ID
+# Regions
+
+## Create
 
 ```
-GET /cctvs/{cctv_id}
+POST /regions
 ```
-
----
-
-### Update CCTV
-
-```
-PUT /cctvs/{cctv_id}
-```
-
-Body:
 
 ```json
 {
-  "name": "New Name"
+  "cctv_id": 1,
+  "street_id": 1,
+  "region_points": [
+    { "x": 10, "y": 20 },
+    { "x": 30, "y": 40 }
+  ]
 }
 ```
 
 ---
 
-### Delete CCTV
+## Get All
 
 ```
-DELETE /cctvs/{cctv_id}
+GET /regions
+```
+
+## Get One
+
+```
+GET /regions/{id}
+```
+
+## Update
+
+```
+PUT /regions/{id}
 ```
 
 ---
 
-## Detections
+# Detections
 
-### Get Detections
+## Get by CCTV
 
 ```
-GET /cctvs/{cctv_id}/detections
+GET /detections/cctv/{cctv_id}
 ```
 
-### Query Parameters
+### Query Params
 
-| Parameter      | Type  | Description          |
-| -------------- | ----- | -------------------- |
-| start_time     | int   | Unix start timestamp |
-| end_time       | int   | Unix end timestamp   |
-| region_start_x | float | Region filter (0–1)  |
-| region_start_y | float | Region filter (0–1)  |
-| region_end_x   | float | Region filter (0–1)  |
-| region_end_y   | float | Region filter (0–1)  |
+* `start_time` (optional)
+* `end_time` (optional)
+
+---
+
+## Get by Region
+
+```
+GET /detections/region/{region_id}
+```
+
+---
+
+## Logging
+
+All write operations generate logs:
+
+```
+logs table:
+- id
+- message
+- time
+```
+
+---
+
+## Error Handling
+
+| Status Code | Meaning      |
+| ----------- | ------------ |
+| 401         | Unauthorized |
+| 404         | Not Found    |
+| 400         | Bad Request  |
+| 500         | Server Error |
+
+---
+
+## Notes for Developers
+
+* All protected routes require **Bearer Token**
+* Cascade deletes are enabled:
+
+  * Deleting intersections removes streets, CCTVs, etc.
+* Region updates **replace all points**
+* Detection filtering supports time ranges
+* Passwords are securely hashed using bcrypt
+
+---
+
+## Interactive Docs
+
+After running:
+
+* Swagger UI:
+  `http://localhost:8000/docs`
+
+* ReDoc:
+  `http://localhost:8000/redoc`
+
+---
+
+# CCTV Worker
+
+This project is a **computer vision pipeline** that uses **YOLOv8 object tracking** together with a **MySQL database (via SQLAlchemy)** to:
+
+* Detect and track objects from CCTV streams
+* Store detections in a database
+* Map detections to predefined polygonal regions
+* Record when tracked objects enter specific regions
+
+---
+
+## Features
+
+* **Real-time object detection & tracking** using YOLOv8
+* **RTSP / camera stream support**
+* **Track persistence** across frames
+* **Polygon-based region detection**
+* **Relational database storage (MySQL)**
+* **Automatic track pruning for stale objects**
+
+---
+
+## Project Structure
+
+```
+common/
+├── database.py   # Database connection and session management
+├── models.py     # SQLAlchemy ORM models
+
+worker/
+└── main.py       # Detection pipeline and processing logic
+```
+
+---
+
+## Database Setup
+
+### Configuration
+
+Edit the database connection in:
+
+```python
+DATABASE_URL = "mysql+mysqlconnector://root:@localhost:3306/_20260301"
+```
+
+Make sure:
+
+* MySQL is running
+* Database exists (`_20260301`)
+* Credentials are correct
+
+---
+
+### ORM Models Overview
+
+#### Core Entities
+
+* **User** – authentication and session tracking
+* **Log** – system logs
+* **Intersection** – physical locations
+* **Street** – belongs to an intersection
+* **CCTV** – camera devices linked to intersections
+
+#### Detection Pipeline
+
+* **Detection** – detected object (per track)
+* **Region** – polygon areas tied to CCTV + street
+* **RegionPoint** – vertices of a polygon
+* **DetectionInRegion** – mapping of detection → region
+
+---
+
+### Relationships
+
+* Intersection → Streets, CCTVs
+* CCTV → Detections, Regions
+* Region → RegionPoints, DetectionInRegion
+* Detection → DetectionInRegion
+
+---
+
+## Installation
+
+### 1. Install dependencies
+
+```bash
+pip install sqlalchemy mysql-connector-python ultralytics opencv-python
+```
+
+---
+
+### 2. Download YOLO model
+
+The system uses:
+
+```
+yolov8s.pt
+```
+
+It will auto-download via Ultralytics if not present.
+
+---
+
+## Running the Worker
+
+```bash
+python worker/main.py --cctv 1
+```
+
+### Arguments
+
+| Argument  | Description                      |
+| --------- | -------------------------------- |
+| `--cctv`  | CCTV ID from the database        |
+| `--debug` | Use local webcam instead of RTSP |
 
 Example:
 
-```
-GET /cctvs/1/detections?start_time=1700000000&end_time=1700000600
-```
-
-Example with region filter:
-
-```
-GET /cctvs/1/detections?start_time=1700000000&end_time=1700000600&region_start_x=0.2&region_start_y=0.2&region_end_x=0.6&region_end_y=0.6
+```bash
+python worker/main.py --cctv 1 --debug
 ```
 
 ---
 
-# Detection Logic
+## How It Works
 
-The worker:
+### 1. Initialization
 
-1. Captures frames from webcam
-2. Runs YOLOv8 detection
-3. Tracks the frame with the **maximum number of detected objects within 1 second**
-4. Saves center coordinates of bounding boxes
+* Loads CCTV config from DB
+* Loads YOLOv8 model
+* Loads regions (polygons) for the CCTV
 
-Coordinates are stored as normalized values:
+---
 
-```
-x = center_x / frame_width
-y = center_y / frame_height
+### 2. Frame Processing Loop
+
+For each frame:
+
+1. Run YOLO tracking:
+
+   ```python
+   results = model.track(frame, persist=True)
+   ```
+
+2. Extract:
+
+   * Bounding box
+   * Class label
+   * Track ID
+
+3. Process detection:
+
+   * Create DB record (if new track)
+   * Compute bounding box center
+   * Check region intersections
+
+---
+
+### 3. Region Detection
+
+* Uses **ray casting algorithm** to check if a point lies inside a polygon:
+
+```python
+is_point_in_polygon(point, polygon)
 ```
 
 ---
 
-# Example Detection Response
+### 4. Track State Management
 
-```json
-[
-  {
-    "id": 12,
-    "time": 1700001234,
-    "coords": [
-      { "x": 0.42, "y": 0.61 },
-      { "x": 0.55, "y": 0.48 }
-    ]
-  }
-]
+Each tracked object keeps:
+
+```python
+TrackState:
+- track_id
+- cls_name
+- db_detection_id
+- regions_entered
+- last_seen_ts
 ```
 
 ---
 
-# Technologies Used
+### 5. Pruning
 
-* FastAPI
-* SQLAlchemy
-* MySQL
-* OpenCV
-* YOLOv8 (Ultralytics)
-* Pydantic
+Old tracks are removed periodically:
+
+* Interval: `10 seconds`
+* Max age: `30 seconds`
+
+---
+
+## Region Format
+
+Regions are defined in the database:
+
+* A region consists of multiple `(x, y)` points
+* Points form a polygon
+* Detection center must fall inside polygon to trigger
+
+---
+
+## Display
+
+* Live annotated frames shown via OpenCV:
+
+```python
+cv2.imshow("frame", results[0].plot())
+```
+
+Press **`q`** to quit.
 
 ---
 

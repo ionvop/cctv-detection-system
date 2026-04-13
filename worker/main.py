@@ -1,3 +1,4 @@
+from common.models import CCTV, Region, Detection, DetectionInRegion
 from common.database import Base, SessionLocal, engine
 from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
@@ -69,6 +70,7 @@ def main() -> None:
 
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
+    cctv = db.get(CCTV, args.cctv)
     model = YOLO("yolov8s.pt")
     
     dir_buffer: list = []

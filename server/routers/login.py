@@ -20,7 +20,7 @@ def login(
     user: UserBase,
     db: Session = Depends(get_db)
 ) -> dict[str, str]:
-    db_user = db.get(User, user.username)
+    db_user = db.query(User).filter(User.username == user.username).first()
 
     if not db_user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
