@@ -70,8 +70,7 @@ def main() -> None:
 
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
-    cctv = db.get(CCTV, args.cctv)
-    model = YOLO("yolov8s.pt")
+    model = YOLO("yolov8n.pt")
     
     dir_buffer: list = []
     last_flush_ts = time.time()
@@ -103,6 +102,13 @@ def main() -> None:
             while True:
                 
                 ret, frame = cap.read()
+
+                # Grab extra frames to drain the buffer when inference is slow,
+                # keeping the displayed/processed frame as close to live as possible.
+                for _ in range(2):
+                    ok, fresh = cap.read()
+                    if ok:
+                        frame = fresh
 
                 if not ret:
                     # close the broken connection and reinitialize the states for the next iteration, annoying ahh language
