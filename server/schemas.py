@@ -70,17 +70,19 @@ class CCTVBase(BaseModel):
     rtsp_url: str
 
 
-class IntersectionCreate(IntersectionBase):
+class CCTVCreate(CCTVBase):
     pass
 
 
-class IntersectionUpdate(BaseModel):
+class CCTVUpdate(BaseModel):
     name: Optional[str] = None
     rtsp_url: Optional[str] = None
 
 
-class IntersectionResponse(IntersectionBase):
+class CCTVResponse(CCTVBase):
     id: int
+    status: str
+    is_being_viewed: bool
     time: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -97,8 +99,8 @@ class DetectionResponse(DetectionBase):
 
 
 class RegionPointBase(BaseModel):
-    x: int
-    y: int
+    x: float
+    y: float
 
 
 class RegionBase(BaseModel):

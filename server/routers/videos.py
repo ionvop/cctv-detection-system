@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from common.database import get_db
@@ -37,22 +38,24 @@ class PushUnsubscribePayload(BaseModel):
 
 @router.post("/videos/upload")
 async def upload_video(
-    file:            UploadFile = File(...),
-    intersection_id: int        = Form(...),
-    recorded_at:     str        = Form(None),
-    db:              Session    = Depends(get_db),
-    user:            models.User = Depends(get_current_user),
+    file:            UploadFile      = File(...),
+    intersection_id: int | None      = Form(None),
+    recorded_at:     str             = Form(None),
+    db:              Session         = Depends(get_db),
+    user:            models.User     = Depends(get_current_user),
 ):
     """
     Save the uploaded video to disk, create a videos row, enqueue the
     RQ processing job, and return the video_id immediately.
+    intersection_id is optional — omit to analyse the video standalone.
     The browser can close — processing continues in the background.
     """
-    intersection = db.query(models.Intersection).filter(
-        models.Intersection.id == intersection_id
-    ).first()
-    if not intersection:
-        raise HTTPException(status_code=404, detail="Intersection not found")
+    if intersection_id is not None:
+        intersection = db.query(models.Intersection).filter(
+            models.Intersection.id == intersection_id
+        ).first()
+        if not intersection:
+            raise HTTPException(status_code=404, detail="Intersection not found")
 
     suffix   = Path(file.filename or "upload").suffix or ".mp4"
     unique   = uuid.uuid4().hex
@@ -152,6 +155,65 @@ def list_videos(
         }
         for v in videos
     ]
+
+
+# ---------------------------------------------------------------------------
+# Video analytics
+# ---------------------------------------------------------------------------
+
+@router.get("/videos/{video_id}/analytics")
+def get_video_analytics(
+    video_id: int,
+    db:       Session      = Depends(get_db),
+    user:     models.User  = Depends(get_current_user),
+):
+    """
+    Return per-object-type detection counts and a time-series (bucketed by
+    minute) for a specific video.  Works regardless of intersection assignment.
+    """
+    video = db.query(models.Video).filter(models.Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    # Totals by object type
+    type_rows = db.execute(text("""
+        SELECT object_type, COUNT(*)::int AS total
+        FROM detections
+        WHERE video_id = :vid
+        GROUP BY object_type
+        ORDER BY total DESC
+    """), {"vid": video_id}).fetchall()
+
+    # Time-series bucketed by minute relative to recording start
+    ts_rows = db.execute(text("""
+        SELECT
+            DATE_TRUNC('minute', time)  AS bucket,
+            object_type,
+            COUNT(*)::int               AS total
+        FROM detections
+        WHERE video_id = :vid
+        GROUP BY DATE_TRUNC('minute', time), object_type
+        ORDER BY bucket
+    """), {"vid": video_id}).fetchall()
+
+    return {
+        "video_id":   video_id,
+        "filename":   video.filename,
+        "status":     video.status,
+        "recorded_at": video.recorded_at.isoformat() if video.recorded_at else None,
+        "by_type": [
+            {"object_type": r.object_type, "count": r.total}
+            for r in type_rows
+        ],
+        "time_series": [
+            {
+                "bucket":      r.bucket.isoformat(),
+                "object_type": r.object_type,
+                "count":       r.total,
+            }
+            for r in ts_rows
+        ],
+    }
 
 
 # ---------------------------------------------------------------------------

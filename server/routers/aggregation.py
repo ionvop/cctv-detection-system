@@ -1,10 +1,12 @@
 # server/routers/aggregation.py
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
 from common.database import SessionLocal
-from common.models import AggregationSummary, Intersection
+from common import models
+from server.utils import get_current_user
 from sqlalchemy import text
+from datetime import datetime
+from typing import Optional, Literal
 import asyncio
 import json
 
@@ -14,7 +16,7 @@ router = APIRouter(prefix="/aggregation", tags=["Aggregation"])
 connected_clients: list[asyncio.Queue] = []
 
 async def aggregation_pusher():
-    """Background task — queries aggregation_summaries every 5s and fans out to all clients."""
+    """Background task -queries aggregation_summaries every 5s and fans out to all clients."""
     while True:
         await asyncio.sleep(5)
         db = SessionLocal()
@@ -81,3 +83,64 @@ async def stream_aggregation():
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/history")
+def get_history(
+    start: datetime,
+    end: datetime,
+    intersection_id: Optional[int] = None,
+    street_id: Optional[int] = None,
+    bucket: Literal["hour", "day", "week"] = "day",
+    user: models.User = Depends(get_current_user),
+):
+    """Return aggregation_summaries for a date range, bucketed by hour/day/week."""
+    # bucket is a Literal so it is safe to interpolate
+    trunc = bucket
+
+    conditions = ["a.window_start >= :start", "a.window_start < :end"]
+    params: dict = {"start": start, "end": end}
+
+    if intersection_id is not None:
+        conditions.append("a.intersection_id = :intersection_id")
+        params["intersection_id"] = intersection_id
+    if street_id is not None:
+        conditions.append("a.street_id = :street_id")
+        params["street_id"] = street_id
+
+    where = " AND ".join(conditions)
+
+    db = SessionLocal()
+    try:
+        rows = db.execute(text(f"""
+            SELECT
+                a.intersection_id,
+                i.name          AS intersection_name,
+                a.street_id,
+                a.object_type,
+                DATE_TRUNC('{trunc}', a.window_start) AS window_start,
+                SUM(a.count)::int                      AS count
+            FROM aggregation_summaries a
+            JOIN intersections i ON i.id = a.intersection_id
+            WHERE {where}
+            GROUP BY
+                a.intersection_id, i.name, a.street_id, a.object_type,
+                DATE_TRUNC('{trunc}', a.window_start)
+            ORDER BY
+                DATE_TRUNC('{trunc}', a.window_start),
+                a.intersection_id, a.street_id, a.object_type
+        """), params).fetchall()
+
+        return [
+            {
+                "intersection_id": r.intersection_id,
+                "intersection_name": r.intersection_name,
+                "street_id": r.street_id,
+                "object_type": r.object_type,
+                "window_start": r.window_start.isoformat(),
+                "count": r.count,
+            }
+            for r in rows
+        ]
+    finally:
+        db.close()
