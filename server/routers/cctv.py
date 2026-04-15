@@ -192,6 +192,8 @@ def update_cctv(
         db_cctv.name = cctv.name
     if cctv.rtsp_url is not None:
         db_cctv.rtsp_url = cctv.rtsp_url
+    if cctv.intersection_id is not None:
+        db_cctv.intersection_id = cctv.intersection_id
     log_and_commit(f"User {user.username} updated cctv {old_name} to {db_cctv.name}", db)
     db.refresh(db_cctv)
     return db_cctv

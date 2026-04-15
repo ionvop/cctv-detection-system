@@ -1,4 +1,4 @@
-# RTSP detection worker pool — each replica claims one camera.
+# RTSP detection worker pool -each replica claims one camera.
 # Set replicas to the number of active cameras.
 # Requires NVIDIA Container Toolkit + device plugin on the node (see nvidia-device-plugin.yaml).
 apiVersion: apps/v1

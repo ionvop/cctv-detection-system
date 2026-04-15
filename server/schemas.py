@@ -77,6 +77,7 @@ class CCTVCreate(CCTVBase):
 class CCTVUpdate(BaseModel):
     name: Optional[str] = None
     rtsp_url: Optional[str] = None
+    intersection_id: Optional[int] = None
 
 
 class CCTVResponse(CCTVBase):
