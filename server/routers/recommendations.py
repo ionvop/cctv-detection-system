@@ -262,3 +262,40 @@ def generate_all_recommendations(
 
     db.commit()
     return results
+
+
+class NotesUpdate(BaseModel):
+    notes: Optional[str]
+
+
+@router.patch("/{rec_id}/notes", response_model=RecommendationResponse)
+def update_notes(
+    rec_id: int,
+    body: NotesUpdate,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[models.User, Depends(get_current_user)],
+):
+    """Update the engineer notes on a recommendation."""
+    rec = db.get(models.Recommendation, rec_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+
+    intersection = db.get(models.Intersection, rec.intersection_id)
+    rec.notes = body.notes
+    db.commit()
+    db.refresh(rec)
+
+    return {
+        "id": rec.id,
+        "intersection_id": rec.intersection_id,
+        "intersection_name": intersection.name if intersection else "",
+        "warrant_1_met": rec.warrant_1_met,
+        "warrant_1_confidence": rec.warrant_1_confidence,
+        "warrant_2_met": rec.warrant_2_met,
+        "warrant_2_confidence": rec.warrant_2_confidence,
+        "warrant_4_met": rec.warrant_4_met,
+        "warrant_4_confidence": rec.warrant_4_confidence,
+        "recommended": rec.recommended,
+        "notes": rec.notes,
+        "generated_at": rec.generated_at.isoformat(),
+    }
