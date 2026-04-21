@@ -6,7 +6,7 @@ runs YOLOv8 inference, writes detections and detections_in_regions, tracks
 progress, and sends a Web Push notification to the uploader on completion
 or failure.
 
-No special decorators — RQ calls this function directly.
+No special decorators - RQ calls this function directly.
 """
 
 import json
@@ -35,7 +35,7 @@ PROGRESS_INTERVAL = 100  # update processed_frames every N frames
 def send_push(subscription: models.PushSubscription, payload: dict, db: Session) -> None:
     """
     Send a Web Push notification to a single subscription.
-    Expired or invalid subscriptions are deleted and skipped — never crash the job.
+    Expired or invalid subscriptions are deleted and skipped - never crash the job.
     """
     try:
         webpush(
@@ -54,7 +54,7 @@ def send_push(subscription: models.PushSubscription, payload: dict, db: Session)
         status = e.response.status_code if e.response else None
         print(f"[push] delivery failed endpoint={subscription.endpoint[:40]}... "
               f"status={status}")
-        # 404 / 410 means the subscription is expired — clean it up
+        # 404 / 410 means the subscription is expired - clean it up
         if status in (404, 410):
             try:
                 db.delete(subscription)
@@ -166,7 +166,7 @@ def process_video(video_id: int) -> None:
             base_ts = base_ts.replace(tzinfo=timezone.utc)
 
         # ── load model and regions ─────────────────────────────────────────
-        model = YOLO("yolov8s.pt")
+        model = YOLO("eyegila_v3.pt")
 
         # For a video upload we need a cctv_id to load regions.
         # Use the first CCTV belonging to the video's intersection, or skip regions.
@@ -183,7 +183,7 @@ def process_video(video_id: int) -> None:
                 regions = load_regions(db, cctv_id)
 
         if not cctv_id:
-            # No cctv/regions — still run inference but detections won't be
+            # No cctv/regions - still run inference but detections won't be
             # linked to regions or counted in aggregation_summaries.
             print("[video job] no cctv/regions found, detections will not be region-linked")
 
