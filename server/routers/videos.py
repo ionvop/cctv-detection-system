@@ -47,8 +47,8 @@ async def upload_video(
     """
     Save the uploaded video to disk, create a videos row, enqueue the
     RQ processing job, and return the video_id immediately.
-    intersection_id is optional — omit to analyse the video standalone.
-    The browser can close — processing continues in the background.
+    intersection_id is optional - omit to analyse the video standalone.
+    The browser can close - processing continues in the background.
     """
     if intersection_id is not None:
         intersection = db.query(models.Intersection).filter(

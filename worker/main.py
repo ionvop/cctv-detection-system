@@ -12,7 +12,11 @@ import time
 import os
 import cv2
 import numpy as np
+import redis as redis_lib
 from worker.claim import claim_camera, release_camera, verify_claim
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+_redis = redis_lib.from_url(REDIS_URL)
 from worker.heartbeat import HeartbeatThread
 from worker.stream import open_stream, reconnect_stream, resolve_rtsp_url
 
@@ -70,7 +74,7 @@ def main() -> None:
 
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
-    model = YOLO("yolov8n.pt")
+    model = YOLO("eyegila_v3.pt")
     
     dir_buffer: list = []
     last_flush_ts = time.time()
@@ -137,11 +141,35 @@ def main() -> None:
 
                 frame_h, frame_w = frame.shape[:2]
 
-                # show gui with draw regions utility function to debug the detection in region functionality
+                # Publish detection boxes as JSON so camera_ws.py can overlay
+                # them on its own smooth RTSP stream without any encoding here.
+                try:
+                    detections_payload = []
+                    for box in results[0].boxes:  # type: ignore
+                        if box.id is None:
+                            continue
+                        bx1, by1, bx2, by2 = box.xyxy[0].tolist()
+                        detections_payload.append({
+                            "track_id":    int(box.id[0]),
+                            "object_type": model.names[int(box.cls[0])],
+                            "confidence":  round(float(box.conf[0]), 3),
+                            "x1": round(bx1 / frame_w, 4),
+                            "y1": round(by1 / frame_h, 4),
+                            "x2": round(bx2 / frame_w, 4),
+                            "y2": round(by2 / frame_h, 4),
+                        })
+                    import json as _json
+                    _redis.setex(f"cam:{cctv_id}:detections", 5, _json.dumps({
+                        "ts":    time.time(),
+                        "boxes": detections_payload,
+                    }))
+                except Exception:
+                    pass
+
                 if show_preview:
-                        display = results[0].plot()
-                        display = draw_regions(display, regions, frame_w, frame_h)
-                        cv2.imshow(f"cctv-{cctv_id}", display)
+                    annotated = results[0].plot()
+                    annotated = draw_regions(annotated, regions, frame_w, frame_h)
+                    cv2.imshow(f"cctv-{cctv_id}", annotated)
 
                 
                 if not results:
@@ -283,31 +311,23 @@ def process_detection(
         
         try:
             db.add(detection)
-            db.commit()
-            db.refresh(detection)
+            db.flush()
         except Exception as e:
             print(f"[worker] detection write failed: {e}")
             db.rollback()
-            return 
-        
+            return
+
         state.db_detection_id = int(detection.id) # type: ignore
 
         for region in matching_regions:
             state.regions_entered.add(region["id"])
-            # db.add(models.DetectionInRegion(
-            #     region_id=region["id"],
-            #     detection_id=state.db_detection_id,
-            # ))
-            
             if len(dir_buffer) >= MAX_BUFFER_SIZE:
-                dir_buffer.pop(0)  
+                dir_buffer.pop(0)
                 print("[worker] buffer full, dropping oldest detection")
-
             dir_buffer.append({
                 "region_id": region["id"],
                 "detection_id": state.db_detection_id,
             })
-        db.commit()
         return
 
     new_entries = False
@@ -330,8 +350,6 @@ def process_detection(
                 "detection_id": state.db_detection_id,
             })
             new_entries = True
-    if new_entries:
-        db.commit()
 
 
 def prune_tracks(
@@ -457,16 +475,28 @@ def flush_detection_buffer(
     db: Session,
     dir_buffer: list,
 ) -> None:
-    if not dir_buffer:
-        return
     items = dir_buffer.copy()
     dir_buffer.clear()
     try:
-        db.bulk_insert_mappings(models.DetectionInRegion, items) # type: ignore
+        if items:
+            db.bulk_insert_mappings(models.DetectionInRegion, items) # type: ignore
         db.commit()
     except Exception as e:
-        print(f"[worker] dir flush failed: {e}")
         db.rollback()
+        # Retry row-by-row so one bad region_id doesn't drop everything
+        bad_regions: set[int] = set()
+        for item in items:
+            try:
+                db.execute(
+                    text("INSERT INTO detections_in_regions (region_id, detection_id) VALUES (:r, :d)"),
+                    {"r": item["region_id"], "d": item["detection_id"]},
+                )
+                db.commit()
+            except Exception as row_err:
+                db.rollback()
+                bad_regions.add(item["region_id"])
+        if bad_regions:
+            print(f"[worker] skipped stale region_ids {bad_regions} — restart worker to reload regions")
         
 if __name__ == "__main__":
     main()
