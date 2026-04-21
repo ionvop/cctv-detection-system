@@ -1,4 +1,4 @@
-# NVIDIA device plugin DaemonSet — exposes GPU resources to pods.
+# NVIDIA device plugin DaemonSet - exposes GPU resources to pods.
 # Apply after installing NVIDIA Container Toolkit on each GPU node:
 #   https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
 #

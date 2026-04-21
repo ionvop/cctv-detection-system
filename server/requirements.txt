@@ -1,5 +1,8 @@
 bcrypt
 fastapi[standard]
 python-dotenv
-bcrypt
 sqlalchemy
+psycopg2-binary
+rq
+redis
+opencv-python-headless

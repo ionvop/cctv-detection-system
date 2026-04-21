@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS detections (
     PRIMARY KEY (id, time)
 );
 
--- No FK on detection_id — hypertable cross-chunk FK limitation (see above).
+-- No FK on detection_id - hypertable cross-chunk FK limitation (see above).
 CREATE TABLE IF NOT EXISTS detections_in_regions (
     id           SERIAL PRIMARY KEY,
     region_id    INTEGER NOT NULL REFERENCES regions(id) ON DELETE CASCADE,
@@ -176,7 +176,7 @@ SELECT
     i.id                            AS intersection_id,
     s.id                            AS street_id,
     d.object_type,
-    time_bucket('1 minute', d.time) AS window_start,
+    time_bucket('30 seconds', d.time) AS window_start,
     COUNT(*)                        AS count
 FROM detections            d
 JOIN detections_in_regions dir ON dir.detection_id = d.id
@@ -193,8 +193,8 @@ WITH NO DATA;
 SELECT add_continuous_aggregate_policy(
     'aggregation_summaries',
     start_offset      => INTERVAL '10 minutes',
-    end_offset        => INTERVAL '1 minute',
-    schedule_interval => INTERVAL '1 minute',
+    end_offset        => INTERVAL '30 seconds',
+    schedule_interval => INTERVAL '30 seconds',
     if_not_exists     => TRUE
 );
 
@@ -242,7 +242,7 @@ CREATE INDEX IF NOT EXISTS idx_agg_street_window        ON aggregation_summaries
 
 -- ============================================================
 -- DEFAULT ADMIN USER
--- Password: admin  (bcrypt cost 12) — change after first login.
+-- Password: admin  (bcrypt cost 12) - change after first login.
 -- ============================================================
 
 INSERT INTO users (username, hash, role)

@@ -1,9 +1,9 @@
 python-dotenv
 ultralytics
+lap>=0.5.12
 sqlalchemy
 psycopg2-binary
 rq
 redis
-opencv-python
-python-dotenv
+opencv-python-headless
 pywebpush
