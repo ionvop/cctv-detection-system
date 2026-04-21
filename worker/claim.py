@@ -79,9 +79,8 @@ def claim_camera(db: Session) -> tuple[models.CCTV, int]:
 
             claim_version: int = int(row[0])
 
-            # update the status of cctvs TODO: might be redundant
             db.execute(text(
-                "UPDATE cctvs SET status = 'active' WHERE id = :id"
+                "UPDATE cctvs SET status = 'online' WHERE id = :id"
             ), {"id": cctv_id})
 
             db.execute(text("COMMIT"))

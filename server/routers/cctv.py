@@ -148,7 +148,18 @@ def create_cctv(
 def get_cctvs(
     db: Annotated[Session, Depends(get_db)],
 ) -> list[CCTVResponse]:
-    return db.query(CCTV).all()
+    from sqlalchemy import text as _text
+    cctvs = db.query(CCTV).all()
+    fresh = {
+        row[0]
+        for row in db.execute(_text(
+            "SELECT cctv_id FROM worker_heartbeats "
+            "WHERE last_seen > NOW() - INTERVAL '15 seconds'"
+        )).fetchall()
+    }
+    for c in cctvs:
+        c.status = "online" if c.id in fresh else "offline"
+    return cctvs
 
 
 @router.get("/discover", response_model=list[DiscoveredCamera])
@@ -167,11 +178,17 @@ def get_cctv(
     cctv_id: int,
     db: Annotated[Session, Depends(get_db)],
 ) -> CCTVResponse:
+    from sqlalchemy import text as _text
     cctv = db.get(CCTV, cctv_id)
 
     if not cctv:
         raise HTTPException(status_code=404, detail="CCTV not found")
 
+    row = db.execute(_text(
+        "SELECT 1 FROM worker_heartbeats "
+        "WHERE cctv_id = :id AND last_seen > NOW() - INTERVAL '15 seconds'"
+    ), {"id": cctv_id}).fetchone()
+    cctv.status = "online" if row else "offline"
     return cctv
 
 

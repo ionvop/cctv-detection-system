@@ -16,27 +16,23 @@ router = APIRouter(prefix="/aggregation", tags=["Aggregation"])
 connected_clients: list[asyncio.Queue] = []
 
 async def aggregation_pusher():
-    """Background task -queries aggregation_summaries every 5s and fans out to all clients."""
+    """Background task -queries live detection_street_view every 5s and fans out to all clients."""
     while True:
         await asyncio.sleep(5)
         db = SessionLocal()
         try:
             rows = db.execute(text("""
                 SELECT
-                    a.intersection_id,
-                    i.name  AS intersection_name,
-                    a.street_id,
-                    a.object_type,
-                    a.window_start,
-                    a.count
-                FROM aggregation_summaries a
-                JOIN intersections i ON i.id = a.intersection_id
-                WHERE a.window_start = (
-                    SELECT MAX(window_start)
-                    FROM aggregation_summaries
-                    WHERE intersection_id = a.intersection_id
-                )
-                ORDER BY a.intersection_id, a.street_id, a.object_type
+                    intersection_id,
+                    intersection_name,
+                    street_id,
+                    object_type,
+                    DATE_TRUNC('day', NOW()) AS window_start,
+                    COUNT(*)::int            AS count
+                FROM detection_street_view
+                WHERE time >= DATE_TRUNC('day', NOW())
+                GROUP BY intersection_id, intersection_name, street_id, object_type
+                ORDER BY intersection_id, street_id, object_type
             """)).fetchall()
 
             payload = json.dumps([
@@ -110,9 +106,40 @@ def get_history(
 
     where = " AND ".join(conditions)
 
-    db = SessionLocal()
-    try:
-        rows = db.execute(text(f"""
+    # For recent ranges (≤2 days, hour bucket) query the live view directly
+    # so data is real-time. For longer ranges use the continuous aggregate
+    # which is pre-computed and fast over large windows.
+    use_live = (bucket == "hour" and (end - start).total_seconds() <= 172_800)
+
+    if use_live:
+        source_from  = "detection_street_view a"
+        time_col     = "a.time"
+        count_expr   = "COUNT(*)"
+        name_col     = "a.intersection_name"
+        street_col   = "a.street_id"
+        inter_col    = "a.intersection_id"
+        type_col     = "a.object_type"
+        conditions_live = [c.replace("a.window_start", "a.time") for c in conditions]
+        where_live   = " AND ".join(conditions_live)
+        query = f"""
+            SELECT
+                {inter_col}                         AS intersection_id,
+                {name_col}                          AS intersection_name,
+                {street_col}                        AS street_id,
+                {type_col}                          AS object_type,
+                DATE_TRUNC('{trunc}', {time_col})   AS window_start,
+                {count_expr}::int                   AS count
+            FROM {source_from}
+            WHERE {where_live}
+            GROUP BY
+                {inter_col}, {name_col}, {street_col}, {type_col},
+                DATE_TRUNC('{trunc}', {time_col})
+            ORDER BY
+                DATE_TRUNC('{trunc}', {time_col}),
+                {inter_col}, {street_col}, {type_col}
+        """
+    else:
+        query = f"""
             SELECT
                 a.intersection_id,
                 i.name          AS intersection_name,
@@ -129,7 +156,11 @@ def get_history(
             ORDER BY
                 DATE_TRUNC('{trunc}', a.window_start),
                 a.intersection_id, a.street_id, a.object_type
-        """), params).fetchall()
+        """
+
+    db = SessionLocal()
+    try:
+        rows = db.execute(text(query), params).fetchall()
 
         return [
             {

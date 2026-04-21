@@ -79,3 +79,20 @@ def update_region(
     db.refresh(db_region)
     log_and_commit(f"User {user.username} updated region for street {db_region.street.name}", db)
     return db_region
+
+
+@router.delete("/{region_id}")
+def delete_region(
+    region_id: int,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    db_region = db.get(Region, region_id)
+
+    if not db_region:
+        raise HTTPException(status_code=404, detail="Region not found")
+
+    street_name = db_region.street.name if db_region.street else str(region_id)
+    db.delete(db_region)
+    log_and_commit(f"User {user.username} deleted region for street {street_name}", db)
+    return {"detail": "Region deleted"}
