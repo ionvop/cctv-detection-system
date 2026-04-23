@@ -1,9 +1,9 @@
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from common.models import User, Log
-from fastapi import Depends, HTTPException
-from common.database import get_db
+from fastapi import Depends, HTTPException, Query
+from common.database import get_db, SessionLocal
 from sqlalchemy.orm import Session
-from typing import Annotated
+from typing import Annotated, Optional
 from os import getenv
 
 
@@ -37,6 +37,15 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     return db_user
+
+
+def get_user_from_token(token: str) -> Optional[User]:
+    """Look up a user by session token. Used for WS/SSE where headers aren't available."""
+    db = SessionLocal()
+    try:
+        return db.query(User).filter(User.session == token).first()
+    finally:
+        db.close()
 
 
 def log_and_commit(

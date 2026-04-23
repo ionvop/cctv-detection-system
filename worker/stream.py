@@ -1,9 +1,14 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from common import models
+from common.crypto import decrypt_rtsp_url
 import argparse
+import os
 import time
 import cv2
+
+# Force TCP transport for RTSP to reduce H.264 packet corruption on re-muxed streams
+os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
 
 def resolve_rtsp_url(cctv: models.CCTV, args: argparse.Namespace) -> str | None:
     """
@@ -13,7 +18,7 @@ def resolve_rtsp_url(cctv: models.CCTV, args: argparse.Namespace) -> str | None:
     """
     if args.debug:
         return None
-    raw = (cctv.rtsp_url or "").strip()
+    raw = decrypt_rtsp_url((cctv.rtsp_url or "").strip())
     lower = raw.lower()
     if lower.startswith("rtsp://") or lower.startswith("rtsps://"):
         return raw
@@ -27,7 +32,7 @@ def open_stream(rtsp_url: str | None, debug: bool) -> cv2.VideoCapture:
     source = 2 if debug else rtsp_url
     if source is None:
         raise ValueError("rtsp_url is None and debug mode is off")
-    cap = cv2.VideoCapture(source)
+    cap = cv2.VideoCapture(source, cv2.CAP_FFMPEG)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     return cap
 

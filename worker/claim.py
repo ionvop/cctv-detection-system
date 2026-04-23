@@ -7,102 +7,84 @@ import os
 CLAIM_EXPIRY_SEC = 15
 POLL_INTERVAL_SEC = 5
 
+def try_claim_camera(db: Session) -> tuple[models.CCTV, int] | None:
+    """
+    Single non-blocking attempt to claim one unclaimed or abandoned camera.
+    Returns (cctv, claim_version) on success, None if no camera is available.
+    """
+    worker_pid = os.getpid()
+    try:
+        db.execute(text("BEGIN"))
+
+        result = db.execute(text("""
+            SELECT id FROM cctvs
+            WHERE id NOT IN (
+                SELECT cctv_id FROM worker_heartbeats
+                WHERE last_seen > NOW() - (:expiry * INTERVAL '1 second')
+            )
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+        """), {"expiry": CLAIM_EXPIRY_SEC}).fetchone()
+
+        if result is None:
+            db.execute(text("ROLLBACK"))
+            return None
+
+        cctv_id: int = int(result[0])
+
+        row = db.execute(text("""
+            INSERT INTO worker_heartbeats
+                (cctv_id, worker_pid, last_seen, claimed_at, claim_version, status)
+            VALUES
+                (:cctv_id, :pid, NOW(), NOW(), 1, 'running')
+            ON CONFLICT (cctv_id) DO UPDATE SET
+                worker_pid    = EXCLUDED.worker_pid,
+                last_seen     = NOW(),
+                claimed_at    = NOW(),
+                claim_version = worker_heartbeats.claim_version + 1,
+                status        = 'running'
+            RETURNING claim_version
+        """), {"cctv_id": cctv_id, "pid": worker_pid}).fetchone()
+
+        if row is None:
+            db.execute(text("ROLLBACK"))
+            return None
+
+        claim_version: int = int(row[0])
+        db.execute(text("UPDATE cctvs SET status = 'online' WHERE id = :id"), {"id": cctv_id})
+        db.execute(text("COMMIT"))
+
+    except Exception as e:
+        print(f"[worker pid={worker_pid}] claim attempt failed: {e}")
+        try:
+            db.execute(text("ROLLBACK"))
+        except Exception:
+            pass
+        return None
+
+    cctv = db.query(models.CCTV).filter(models.CCTV.id == cctv_id).first()
+    if cctv is None:
+        raise RuntimeError(f"[worker pid={worker_pid}] claimed cctv_id={cctv_id} but row not found")
+
+    print(f"[worker pid={worker_pid}] claimed camera id={cctv_id} "
+          f"name='{cctv.name}' claim_version={claim_version}")
+    return cctv, claim_version
+
+
 def claim_camera(db: Session) -> tuple[models.CCTV, int]:
     """
-    Atomically claim an unclaimed or abandoned camera.
-
-    Uses SELECT FOR UPDATE SKIP LOCKED on a subquery so the lock is
-    unambiguous. The claim_version fencing token is incremented on every claim, so
-    that a slow-but-alive worker can detect it lost its claim before
-    writing duplicate detections.
-
-    Blocks indefinitely, polling every POLL_INTERVAL_SEC until a camera
-    becomes available.
-
-    :return: (cctv row, claim_version) tuple.
+    Blocking version of try_claim_camera. Polls every POLL_INTERVAL_SEC
+    until a camera becomes available.
     """
-    
     worker_pid = os.getpid()
     print(f"[worker pid={worker_pid}] scanning for unclaimed camera...")
-
     while True:
-        try:
-            db.execute(text("BEGIN"))
-            
-            count = db.execute(text("SELECT COUNT(*) FROM cctvs")).scalar()
-            if count == 0:
-                print(f"[worker pid={worker_pid}] no cameras in database at all - waiting...")
-                time.sleep(POLL_INTERVAL_SEC)
-                continue
-
-            # check for available cctvs using the worker_heartbeats table
-            result = db.execute(text("""
-                SELECT id FROM cctvs
-                WHERE id NOT IN (
-                    SELECT cctv_id FROM worker_heartbeats
-                    WHERE last_seen > NOW() - (:expiry * INTERVAL '1 second')
-                )
-                LIMIT 1
-                FOR UPDATE SKIP LOCKED
-            """), {"expiry": CLAIM_EXPIRY_SEC}).fetchone()
-        
-            # exponential backoff here 
-            if result is None:
-                db.execute(text("ROLLBACK"))
-                print(f"[worker pid={worker_pid}] no camera available, "
-                      f"retrying in {POLL_INTERVAL_SEC}s...")
-                time.sleep(POLL_INTERVAL_SEC)
-                continue
-
-            cctv_id: int = int(result[0])
-
-            # claim a cctv and update the worker_heartbeats
-            row = db.execute(text("""
-                INSERT INTO worker_heartbeats
-                    (cctv_id, worker_pid, last_seen, claimed_at, claim_version, status)
-                VALUES
-                    (:cctv_id, :pid, NOW(), NOW(), 1, 'running')
-                ON CONFLICT (cctv_id) DO UPDATE SET
-                    worker_pid    = EXCLUDED.worker_pid,
-                    last_seen     = NOW(),
-                    claimed_at    = NOW(),
-                    claim_version = worker_heartbeats.claim_version + 1,
-                    status        = 'running'
-                RETURNING claim_version
-            """), {"cctv_id": cctv_id, "pid": worker_pid}).fetchone()
-
-            if row is None:
-                db.execute(text("ROLLBACK"))
-                print(f"[worker pid={worker_pid}] heartbeat insert returned nothing, retrying...")
-                time.sleep(POLL_INTERVAL_SEC)
-                continue
-
-            claim_version: int = int(row[0])
-
-            db.execute(text(
-                "UPDATE cctvs SET status = 'online' WHERE id = :id"
-            ), {"id": cctv_id})
-
-            db.execute(text("COMMIT"))
-
-        except Exception as e:
-            print(f"[worker pid={worker_pid}] claim attempt failed: {e}")
-            try:
-                db.execute(text("ROLLBACK"))
-            except Exception:
-                pass
-            time.sleep(POLL_INTERVAL_SEC)
-            continue
-
-
-        cctv = db.query(models.CCTV).filter(models.CCTV.id == cctv_id).first()
-        
-        if cctv is None:
-            raise RuntimeError(f"[worker pid={worker_pid}] claimed cctv_id={cctv_id} but row not found")
-        
-        print(f"[worker pid={worker_pid}] claimed camera id={cctv_id} "
-              f"name='{cctv.name}' claim_version={claim_version}")
-        return cctv, claim_version
+        result = try_claim_camera(db)
+        if result is not None:
+            return result
+        print(f"[worker pid={worker_pid}] no camera available, "
+              f"retrying in {POLL_INTERVAL_SEC}s...")
+        time.sleep(POLL_INTERVAL_SEC)
 
 
 

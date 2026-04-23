@@ -8,4 +8,7 @@ COPY worker/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY worker ./worker
 COPY eyegila_v3.pt ./eyegila_v3.pt
-CMD ["python", "-m", "worker.main"]
+COPY worker/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD []

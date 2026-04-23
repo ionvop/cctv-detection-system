@@ -89,6 +89,7 @@ class Region(Base):
     id        = Column(Integer, primary_key=True, autoincrement=True)
     cctv_id   = Column(Integer, ForeignKey("cctvs.id",   ondelete="CASCADE"), nullable=False)
     street_id = Column(Integer, ForeignKey("streets.id", ondelete="CASCADE"), nullable=False)
+    direction = Column(String(10), nullable=False, default="unknown")
     time      = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     cctv                  = relationship("CCTV",   back_populates="regions")
     street                = relationship("Street", back_populates="regions")
@@ -204,8 +205,9 @@ class AggregationSummary(Base):
     __tablename__ = "aggregation_summaries"
     __table_args__ = {"info": {"is_view": True}}
 
-    intersection_id = Column(Integer,     primary_key=True)
-    street_id       = Column(Integer,     primary_key=True)
-    object_type     = Column(String(50),  primary_key=True)
+    intersection_id = Column(Integer,    primary_key=True)
+    street_id       = Column(Integer,    primary_key=True)
+    direction       = Column(String(10), primary_key=True)
+    object_type     = Column(String(50), primary_key=True)
     window_start    = Column(DateTime(timezone=True), primary_key=True)
     count           = Column(Integer,    nullable=False)

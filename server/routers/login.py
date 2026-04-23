@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from common.models import User
 from server.utils import log_and_commit, get_current_user
 from server.schemas import UserBase
 from common.database import get_db
+from server.rate_limit import limiter
 from sqlalchemy.orm import Session
 from typing import Annotated
 from bcrypt import checkpw
@@ -16,7 +17,9 @@ router = APIRouter(
 
 
 @router.post("/")
+@limiter.limit("10/minute")
 def login(
+    request: Request,
     user: UserBase,
     db: Session = Depends(get_db)
 ) -> dict[str, str]:

@@ -100,6 +100,7 @@ services:
       UPLOAD_DIR: /app/uploads
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      TZ: ${TZ:-Asia/Manila}
     volumes:
       - upload_data:/app/uploads
     ports:
@@ -119,6 +120,11 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/traffic
       REDIS_URL: redis://redis:6379
+      CAMERAS_PER_WORKER: ${CAMERAS_PER_WORKER:-16}
+      INFERENCE_EVERY_N: ${INFERENCE_EVERY_N:-1}
+      TRT_CACHE_DIR: /app/trt_cache
+    volumes:
+      - trt_cache:/app/trt_cache
     depends_on:
       pgbouncer:
         condition: service_healthy
@@ -141,6 +147,11 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/traffic
       REDIS_URL: redis://redis:6379
+      CAMERAS_PER_WORKER: ${CAMERAS_PER_WORKER:-16}
+      INFERENCE_EVERY_N: ${INFERENCE_EVERY_N:-1}
+      TRT_CACHE_DIR: /app/trt_cache
+    volumes:
+      - trt_cache:/app/trt_cache
     depends_on:
       pgbouncer:
         condition: service_healthy
@@ -154,6 +165,17 @@ services:
               count: all
               capabilities: [gpu]
 
+  frontend:
+    build:
+      context: ./eyegila
+      dockerfile: Dockerfile
+    container_name: frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+
 networks:
   default:
     name: traffic_network
@@ -161,3 +183,4 @@ networks:
 volumes:
   timescale_data:
   upload_data:
+  trt_cache:

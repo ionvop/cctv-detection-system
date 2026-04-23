@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS regions (
     id        SERIAL PRIMARY KEY,
     cctv_id   INTEGER NOT NULL REFERENCES cctvs(id)   ON DELETE CASCADE,
     street_id INTEGER NOT NULL REFERENCES streets(id) ON DELETE CASCADE,
+    direction VARCHAR(10) NOT NULL DEFAULT 'unknown',
     time      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -159,6 +160,7 @@ SELECT
     d.time,
     dir.id          AS detection_in_region_id,
     r.id            AS region_id,
+    r.direction,
     s.id            AS street_id,
     s.name          AS street_name,
     i.id            AS intersection_id,
@@ -175,8 +177,9 @@ WITH (timescaledb.continuous) AS
 SELECT
     i.id                            AS intersection_id,
     s.id                            AS street_id,
+    r.direction,
     d.object_type,
-    time_bucket('30 seconds', d.time) AS window_start,
+    time_bucket('1 minute', d.time) AS window_start,
     COUNT(*)                        AS count
 FROM detections            d
 JOIN detections_in_regions dir ON dir.detection_id = d.id
@@ -186,6 +189,7 @@ JOIN intersections         i   ON i.id  = s.intersection_id
 GROUP BY
     i.id,
     s.id,
+    r.direction,
     d.object_type,
     time_bucket('1 minute', d.time)
 WITH NO DATA;

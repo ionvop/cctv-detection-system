@@ -1,12 +1,23 @@
 from contextlib import asynccontextmanager
 import asyncio
+import json
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from server.rate_limit import limiter
 from dotenv import load_dotenv
+from prometheus_client import (
+    CollectorRegistry, Counter, Gauge, generate_latest,
+    CONTENT_TYPE_LATEST, REGISTRY,
+)
+from prometheus_fastapi_instrumentator import Instrumentator
+from sqlalchemy import text
 
-from common.database import engine, Base
+from common.database import engine, Base, SessionLocal
 from server.routers.aggregation import router as aggregation_router, aggregation_pusher
 from server.routers.videos import router as videos_router
 from server.routers.recommendations import router as recommendations_router
@@ -27,17 +38,66 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+
 # Allow the Vite dev server and any production origin to call the API directly
 # (needed for SSE EventSource and WebSocket which browsers send with Origin headers)
-_CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+_CORS_ORIGINS = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173",
+).split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_CORS_ORIGINS,
-    allow_origin_regex=r"http://localhost:\d+",
+    allow_origins=[o.strip() for o in _CORS_ORIGINS],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/health", include_in_schema=False)
+def health():
+    """Liveness/readiness probe — returns 503 if DB is unreachable."""
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+        return {"status": "ok"}
+    except Exception as exc:
+        return Response(
+            content=json.dumps({"status": "error", "detail": str(exc)}),
+            status_code=503,
+            media_type="application/json",
+        )
+
+
+@app.get("/metrics/workers", include_in_schema=False)
+def worker_metrics():
+    """Expose worker heartbeat data as Prometheus gauge lines."""
+    db = SessionLocal()
+    lines: list[str] = []
+    try:
+        rows = db.execute(text(
+            "SELECT c.id, c.name, h.frames_per_second, h.status, h.last_seen "
+            "FROM cctvs c LEFT JOIN worker_heartbeats h ON h.cctv_id = c.id"
+        )).fetchall()
+        lines.append("# HELP worker_camera_fps Frames per second reported by worker heartbeat")
+        lines.append("# TYPE worker_camera_fps gauge")
+        lines.append("# HELP worker_camera_claimed 1 if a worker currently owns this camera")
+        lines.append("# TYPE worker_camera_claimed gauge")
+        for r in rows:
+            lbl = f'cctv_id="{r.id}",cctv_name="{r.name}"'
+            fps = r.frames_per_second if r.frames_per_second is not None else 0
+            claimed = 1 if r.status is not None else 0
+            lines.append(f"worker_camera_fps{{{lbl}}} {fps}")
+            lines.append(f"worker_camera_claimed{{{lbl}}} {claimed}")
+    finally:
+        db.close()
+    return PlainTextResponse("\n".join(lines) + "\n", media_type=CONTENT_TYPE_LATEST)
+
 
 app.include_router(aggregation_router)
 app.include_router(recommendations_router)

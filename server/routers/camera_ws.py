@@ -5,13 +5,18 @@ import queue as stdlib_queue
 import threading
 import time
 
+os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
+
 import cv2
 import numpy as np
 import redis as redis_lib
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import Response, StreamingResponse
 
 from common.database import SessionLocal
 from common import models
+from common.crypto import decrypt_rtsp_url
+from server.utils import get_user_from_token
 
 router = APIRouter(prefix="/cctvs", tags=["Camera WebSocket"])
 
@@ -61,7 +66,7 @@ def _enqueue(frame_q: stdlib_queue.Queue, data: bytes) -> None:
         pass
 
 
-_DELAY_SEC = 0.8       # seconds to hold frames before displaying
+_DELAY_SEC = 0.3       # seconds to hold frames before displaying
 _MAX_DET_HISTORY = 120  # detection snapshots to keep (~2 min at 1/s inference)
 _OUTPUT_WIDTH = 854     # resize before buffering to reduce memory usage
 
@@ -71,6 +76,7 @@ def _capture_thread(
     cctv_id: int,
     frame_q: stdlib_queue.Queue,
     stop_event: threading.Event,
+    draw_overlay: bool = True,
 ):
     """
     Delay-buffer approach: frames are held for _DELAY_SEC before being sent.
@@ -151,7 +157,7 @@ def _capture_thread(
                         best_diff = diff
                         best_boxes = boxes
 
-                if best_boxes:
+                if draw_overlay and best_boxes:
                     _draw_boxes(delayed_frame, best_boxes)
 
                 ok, jpeg = cv2.imencode(
@@ -174,15 +180,118 @@ def _set_viewed(cctv_id: int, value: bool):
         db.close()
 
 
+_SNAPSHOT_TIMEOUT = 5.0  # seconds to wait for a readable frame
+
+
+def _grab_snapshot(rtsp_url: str, cctv_id: int) -> bytes | None:
+    """Open the RTSP stream, grab one frame with boxes, return JPEG bytes."""
+    det_key = f"cam:{cctv_id}:detections"
+    cap = cv2.VideoCapture(rtsp_url)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    jpeg_bytes: bytes | None = None
+    deadline = time.monotonic() + _SNAPSHOT_TIMEOUT
+    try:
+        while time.monotonic() < deadline:
+            ret, frame = cap.read()
+            if not ret:
+                time.sleep(0.05)
+                continue
+
+            h, w = frame.shape[:2]
+            if w > _OUTPUT_WIDTH:
+                frame = cv2.resize(frame, (_OUTPUT_WIDTH, int(h * _OUTPUT_WIDTH / w)))
+
+            raw = _redis.get(det_key)
+            if raw:
+                try:
+                    data = json.loads(raw)
+                    boxes = data.get("boxes", []) if isinstance(data, dict) else data
+                    _draw_boxes(frame, boxes)
+                except Exception:
+                    pass
+
+            ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            if ok:
+                jpeg_bytes = buf.tobytes()
+            break
+    finally:
+        cap.release()
+    return jpeg_bytes
+
+
+@router.get("/{cctv_id}/snapshot")
+async def camera_snapshot(cctv_id: int):
+    """Return a single JPEG frame from the camera's RTSP stream."""
+    db = SessionLocal()
+    try:
+        cctv = db.get(models.CCTV, cctv_id)
+        if not cctv:
+            raise HTTPException(status_code=404, detail="CCTV not found")
+        rtsp_url = decrypt_rtsp_url(cctv.rtsp_url)
+    finally:
+        db.close()
+
+    jpeg = await asyncio.to_thread(_grab_snapshot, rtsp_url, cctv_id)
+    if jpeg is None:
+        raise HTTPException(status_code=503, detail="Stream unavailable")
+
+    return Response(
+        content=jpeg,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "max-age=5, stale-while-revalidate=10"},
+    )
+
+
+@router.get("/{cctv_id}/boxes/stream")
+async def boxes_stream(cctv_id: int, request: Request, token: str = Query(...)):
+    """SSE stream of bounding box positions from Redis, polled every 50 ms."""
+    if not get_user_from_token(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    det_key = f"cam:{cctv_id}:detections"
+
+    async def generate():
+        last_ts = 0.0
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                raw = _redis.get(det_key)
+                if raw:
+                    try:
+                        data = json.loads(raw)
+                        ts = data.get("ts", 0.0) if isinstance(data, dict) else 0.0
+                        if ts > last_ts:
+                            last_ts = ts
+                            yield f"data: {raw.decode()}\n\n"
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.05)
+        except (asyncio.CancelledError, GeneratorExit):
+            pass
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.websocket("/{cctv_id}/ws")
-async def camera_ws(websocket: WebSocket, cctv_id: int):
+async def camera_ws(websocket: WebSocket, cctv_id: int, token: str = "", overlay: bool = True):
+    if not get_user_from_token(token):
+        await websocket.close(code=4001)
+        return
     db = SessionLocal()
     try:
         cctv = db.get(models.CCTV, cctv_id)
         if not cctv:
             await websocket.close(code=4004)
             return
-        rtsp_url = cctv.rtsp_url
+        rtsp_url = decrypt_rtsp_url(cctv.rtsp_url)
         cctv.is_being_viewed = True
         db.commit()
     finally:
@@ -194,7 +303,7 @@ async def camera_ws(websocket: WebSocket, cctv_id: int):
     stop_event = threading.Event()
     thread = threading.Thread(
         target=_capture_thread,
-        args=(rtsp_url, cctv_id, frame_q, stop_event),
+        args=(rtsp_url, cctv_id, frame_q, stop_event, overlay),
         daemon=True,
     )
     thread.start()

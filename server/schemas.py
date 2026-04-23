@@ -107,6 +107,7 @@ class RegionPointBase(BaseModel):
 class RegionBase(BaseModel):
     cctv_id: int
     street_id: int
+    direction: str = 'unknown'
     region_points: list[RegionPointBase]
 
 
@@ -117,6 +118,7 @@ class RegionCreate(RegionBase):
 class RegionUpdate(BaseModel):
     cctv_id: Optional[int] = None
     street_id: Optional[int] = None
+    direction: Optional[str] = None
     region_points: Optional[list[RegionPointBase]] = None
 
 

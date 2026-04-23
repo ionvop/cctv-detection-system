@@ -1,22 +1,25 @@
 # server/routers/aggregation.py
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from common.database import SessionLocal
 from common import models
-from server.utils import get_current_user
+from server.utils import get_current_user, get_user_from_token
 from sqlalchemy import text
 from datetime import datetime
 from typing import Optional, Literal
 import asyncio
 import json
+import os
 
 router = APIRouter(prefix="/aggregation", tags=["Aggregation"])
+
+_TZ = os.getenv("TZ", "Asia/Manila")
 
 # holds all active SSE connections
 connected_clients: list[asyncio.Queue] = []
 
 async def aggregation_pusher():
-    """Background task -queries live detection_street_view every 5s and fans out to all clients."""
+    """Background task — queries live detection_street_view every 5s and fans out to all clients."""
     while True:
         await asyncio.sleep(5)
         db = SessionLocal()
@@ -26,20 +29,22 @@ async def aggregation_pusher():
                     intersection_id,
                     intersection_name,
                     street_id,
+                    direction,
                     object_type,
-                    DATE_TRUNC('day', NOW()) AS window_start,
-                    COUNT(*)::int            AS count
+                    DATE_TRUNC('day', NOW() AT TIME ZONE :tz) AS window_start,
+                    COUNT(*)::int                             AS count
                 FROM detection_street_view
-                WHERE time >= DATE_TRUNC('day', NOW())
-                GROUP BY intersection_id, intersection_name, street_id, object_type
-                ORDER BY intersection_id, street_id, object_type
-            """)).fetchall()
+                WHERE time >= DATE_TRUNC('day', NOW() AT TIME ZONE :tz) AT TIME ZONE :tz
+                GROUP BY intersection_id, intersection_name, street_id, direction, object_type
+                ORDER BY intersection_id, street_id, direction, object_type
+            """), {"tz": _TZ}).fetchall()
 
             payload = json.dumps([
                 {
                     "intersection_id": r.intersection_id,
                     "intersection_name": r.intersection_name,
                     "street_id": r.street_id,
+                    "direction": r.direction,
                     "object_type": r.object_type,
                     "window_start": r.window_start.isoformat(),
                     "count": r.count,
@@ -57,7 +62,9 @@ async def aggregation_pusher():
 
 
 @router.get("/stream")
-async def stream_aggregation():
+async def stream_aggregation(token: str = Query(...)):
+    if not get_user_from_token(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
     queue: asyncio.Queue = asyncio.Queue()
     connected_clients.append(queue)
 
@@ -112,31 +119,25 @@ def get_history(
     use_live = (bucket == "hour" and (end - start).total_seconds() <= 172_800)
 
     if use_live:
-        source_from  = "detection_street_view a"
-        time_col     = "a.time"
-        count_expr   = "COUNT(*)"
-        name_col     = "a.intersection_name"
-        street_col   = "a.street_id"
-        inter_col    = "a.intersection_id"
-        type_col     = "a.object_type"
         conditions_live = [c.replace("a.window_start", "a.time") for c in conditions]
-        where_live   = " AND ".join(conditions_live)
+        where_live = " AND ".join(conditions_live)
         query = f"""
             SELECT
-                {inter_col}                         AS intersection_id,
-                {name_col}                          AS intersection_name,
-                {street_col}                        AS street_id,
-                {type_col}                          AS object_type,
-                DATE_TRUNC('{trunc}', {time_col})   AS window_start,
-                {count_expr}::int                   AS count
-            FROM {source_from}
+                a.intersection_id,
+                a.intersection_name,
+                a.street_id,
+                a.direction,
+                a.object_type,
+                DATE_TRUNC('{trunc}', a.time)  AS window_start,
+                COUNT(*)::int                   AS count
+            FROM detection_street_view a
             WHERE {where_live}
             GROUP BY
-                {inter_col}, {name_col}, {street_col}, {type_col},
-                DATE_TRUNC('{trunc}', {time_col})
+                a.intersection_id, a.intersection_name, a.street_id, a.direction, a.object_type,
+                DATE_TRUNC('{trunc}', a.time)
             ORDER BY
-                DATE_TRUNC('{trunc}', {time_col}),
-                {inter_col}, {street_col}, {type_col}
+                DATE_TRUNC('{trunc}', a.time),
+                a.intersection_id, a.street_id, a.direction, a.object_type
         """
     else:
         query = f"""
@@ -144,6 +145,7 @@ def get_history(
                 a.intersection_id,
                 i.name          AS intersection_name,
                 a.street_id,
+                a.direction,
                 a.object_type,
                 DATE_TRUNC('{trunc}', a.window_start) AS window_start,
                 SUM(a.count)::int                      AS count
@@ -151,11 +153,11 @@ def get_history(
             JOIN intersections i ON i.id = a.intersection_id
             WHERE {where}
             GROUP BY
-                a.intersection_id, i.name, a.street_id, a.object_type,
+                a.intersection_id, i.name, a.street_id, a.direction, a.object_type,
                 DATE_TRUNC('{trunc}', a.window_start)
             ORDER BY
                 DATE_TRUNC('{trunc}', a.window_start),
-                a.intersection_id, a.street_id, a.object_type
+                a.intersection_id, a.street_id, a.direction, a.object_type
         """
 
     db = SessionLocal()
@@ -167,6 +169,7 @@ def get_history(
                 "intersection_id": r.intersection_id,
                 "intersection_name": r.intersection_name,
                 "street_id": r.street_id,
+                "direction": r.direction,
                 "object_type": r.object_type,
                 "window_start": r.window_start.isoformat(),
                 "count": r.count,
