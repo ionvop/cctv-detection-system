@@ -9,3 +9,6 @@ venv/
 .venv
 *.pt
 .env
+
+node_modules
+.vite/
