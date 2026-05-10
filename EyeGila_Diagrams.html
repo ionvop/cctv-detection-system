@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EyeGila - System Diagrams</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background: #e8eaed;
+  padding: 28px 16px 64px;
+  color: #333;
+}
+
+/* ---- Toolbar ---- */
+.toolbar {
+  max-width: 920px; margin: 0 auto 22px;
+  display: flex; justify-content: space-between;
+  align-items: flex-end; flex-wrap: wrap; gap: 10px;
+}
+.page-title h1 { font-size: 14px; font-weight: bold; color: #111; margin-bottom: 4px; }
+.page-title p  { font-size: 10px; color: #888; line-height: 1.5; max-width: 540px; }
+.btn-print {
+  background: #1a56db; color: #fff; border: none; border-radius: 3px;
+  padding: 7px 16px; font-size: 11px; font-family: Arial, Helvetica, sans-serif;
+  cursor: pointer; flex-shrink: 0;
+}
+.btn-print:hover { background: #1140a8; }
+
+/* ---- Figure card ---- */
+.figure {
+  background: #fff; border: 1px solid #ccc;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+  max-width: 920px; margin: 0 auto 22px;
+  padding: 12px 14px 10px;
+}
+.fig-header {
+  display: flex; justify-content: space-between;
+  align-items: center; margin-bottom: 8px;
+}
+.fig-label { font-size: 9px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: #bbb; }
+.btn-save {
+  background: #f5f5f5; border: 1px solid #ddd; border-radius: 3px;
+  padding: 3px 10px; font-size: 9px; font-family: Arial, Helvetica, sans-serif;
+  cursor: pointer; color: #555;
+}
+.btn-save:hover { background: #e8e8e8; }
+.fig-caption {
+  font-size: 10px; color: #aaa; font-style: italic; text-align: center;
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid #f0f0f0;
+}
+
+/* ---- SVG base ---- */
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { font-family: Arial, Helvetica, sans-serif; }
+
+/* Draw.io pastel box fills */
+.bx-blue  { fill: #dae8fc; stroke: #6c8ebf; stroke-width: 1; }
+.bx-grn   { fill: #d5e8d4; stroke: #82b366; stroke-width: 1; }
+.bx-yel   { fill: #fff2cc; stroke: #d6b656; stroke-width: 1; }
+.bx-org   { fill: #ffe6cc; stroke: #d79b00; stroke-width: 1; }
+.bx-red   { fill: #f8cecc; stroke: #b85450; stroke-width: 1; }
+.bx-pur   { fill: #e1d5e7; stroke: #9673a6; stroke-width: 1; }
+.bx-gray  { fill: #f5f5f5; stroke: #cccccc; stroke-width: 1; }
+.bx-white { fill: #ffffff; stroke: #cccccc; stroke-width: 1; }
+.bx-dk    { fill: #2d3748; stroke: #2d3748; stroke-width: 1; }
+
+/* Dividers */
+.div-blue  { stroke: #6c8ebf; stroke-width: 1; fill: none; }
+.div-grn   { stroke: #82b366; stroke-width: 1; fill: none; }
+.div-yel   { stroke: #d6b656; stroke-width: 1; fill: none; }
+.div-org   { stroke: #d79b00; stroke-width: 1; fill: none; }
+.div-red   { stroke: #b85450; stroke-width: 1; fill: none; }
+.div-pur   { stroke: #9673a6; stroke-width: 1; fill: none; }
+.div-gray  { stroke: #cccccc; stroke-width: 1; fill: none; }
+
+/* Text */
+.t11b { font-size: 11px; font-weight: bold; fill: #222; }
+.t10b { font-size: 10px; font-weight: bold; fill: #222; }
+.t9b  { font-size: 9px;  font-weight: bold; fill: #333; }
+.t9   { font-size: 9px;  fill: #555; }
+.t8b  { font-size: 8px;  font-weight: bold; fill: #444; }
+.t8   { font-size: 8px;  fill: #777; }
+.t9m  { font-size: 9px;  fill: #555; font-family: 'Courier New', monospace; }
+.t8pk { font-size: 8px;  fill: #b85450; font-family: 'Courier New', monospace; font-weight: bold; }
+.t8fk { font-size: 8px;  fill: #6c8ebf; font-family: 'Courier New', monospace; font-weight: bold; }
+.t9wh { font-size: 9px;  fill: #fff; font-weight: bold; }
+
+/* Arrows */
+.arr  { fill: none; stroke: #444; stroke-width: 1.2; }
+.arrd { fill: none; stroke: #999; stroke-width: 1; stroke-dasharray: 5 3; }
+.arrr { fill: none; stroke: #b85450; stroke-width: 1; stroke-dasharray: 4 3; }
+.arr3 { fill: none; stroke: #888; stroke-width: 1; }
+
+/* Print */
+@media print {
+  body { background: #fff; padding: 4px; }
+  .toolbar, .btn-save { display: none !important; }
+  .figure { box-shadow: none; border-color: #ccc; margin-bottom: 10px; page-break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="page-title">
+    <h1>EyeGila - System Diagrams</h1>
+    <p>Real-Time Vehicle and Pedestrian Detection with Traffic Signal Recommendations (YOLOv8)</p>
+  </div>
+  <button class="btn-print" onclick="window.print()">Print / Save as PDF</button>
+</div>
+
+
+<!-- ============================================================
+     FIGURE 1: System Architecture
+============================================================ -->
+<div class="figure" id="fig1">
+<div class="fig-header">
+  <span class="fig-label">Figure 1 : System Architecture</span>
+  <button class="btn-save" onclick="saveFig('fig1','fig1-architecture')">Save PNG</button>
+</div>
+<svg viewBox="0 0 740 532" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="mh1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0 1L9 5L0 9Z" fill="#444"/>
+  </marker>
+  <marker id="mr1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0 1L9 5L0 9Z" fill="#b85450"/>
+  </marker>
+  <pattern id="g1" width="20" height="20" patternUnits="userSpaceOnUse">
+    <circle cx="0.5" cy="0.5" r="0.6" fill="#e4e4e4"/>
+  </pattern>
+</defs>
+
+<!-- Canvas dot grid -->
+<rect width="740" height="532" fill="url(#g1)"/>
+
+<!-- L1: Camera Input -->
+<rect x="10" y="10" width="572" height="78" rx="2" class="bx-blue"/>
+<line x1="10" y1="28" x2="582" y2="28" class="div-blue"/>
+<text x="20" y="22" dominant-baseline="central" class="t11b">L1  Camera Input</text>
+<text x="20" y="43" dominant-baseline="central" class="t9">Live CCTV feeds over <tspan font-weight="bold">RTSP / H.264</tspan> on TMO local network</text>
+<rect x="26"  y="52" width="116" height="26" rx="2" class="bx-white"/>
+<text x="84"  y="65" text-anchor="middle" dominant-baseline="central" class="t9b">Camera 1</text>
+<rect x="154" y="52" width="116" height="26" rx="2" class="bx-white"/>
+<text x="212" y="65" text-anchor="middle" dominant-baseline="central" class="t9b">Camera 2</text>
+<rect x="282" y="52" width="116" height="26" rx="2" class="bx-white"/>
+<text x="340" y="65" text-anchor="middle" dominant-baseline="central" class="t9b">Camera 3</text>
+<rect x="410" y="52" width="116" height="26" rx="2" class="bx-gray"/>
+<text x="468" y="65" text-anchor="middle" dominant-baseline="central" class="t9b">Camera N</text>
+
+<line x1="175" y1="88" x2="175" y2="104" class="arr" marker-end="url(#mh1)"/>
+<text x="184" y="97" dominant-baseline="central" class="t8">RTSP frames</text>
+
+<!-- L2: Worker Inference -->
+<rect x="10" y="106" width="572" height="90" rx="2" class="bx-grn"/>
+<line x1="10" y1="124" x2="582" y2="124" class="div-grn"/>
+<text x="20" y="118" dominant-baseline="central" class="t11b">L2  Worker Inference  (Python + GPU Docker)</text>
+<text x="20" y="138" dominant-baseline="central" class="t9"><tspan font-weight="bold">YOLOv8</tspan> eyegila_v3.pt  -  detection + bounding box per frame</text>
+<text x="20" y="153" dominant-baseline="central" class="t9"><tspan font-weight="bold">ByteTrack</tspan>  -  persistent track IDs across frames</text>
+<text x="20" y="168" dominant-baseline="central" class="t9">Ray-casting polygon check  |  <tspan font-weight="bold">300 ms</tspan> batch flush via bulk_insert_mappings</text>
+<text x="20" y="183" dominant-baseline="central" class="t9">Camera claim: <tspan font-weight="bold">SELECT FOR UPDATE SKIP LOCKED</tspan>  |  heartbeat every 30 s</text>
+
+<line x1="582" y1="138" x2="598" y2="138" class="arrr" marker-end="url(#mr1)"/>
+<text x="584" y="130" class="t8" fill="#b85450">publish</text>
+
+<line x1="175" y1="196" x2="175" y2="212" class="arr" marker-end="url(#mh1)"/>
+<text x="184" y="205" dominant-baseline="central" class="t8">bulk INSERT via PgBouncer</text>
+
+<!-- L3: Data Persistence -->
+<rect x="10" y="214" width="572" height="90" rx="2" class="bx-pur"/>
+<line x1="10" y1="232" x2="582" y2="232" class="div-pur"/>
+<text x="20" y="226" dominant-baseline="central" class="t11b">L3  Data Persistence</text>
+<rect x="22" y="240" width="134" height="56" rx="2" class="bx-white"/>
+<text x="89" y="257" text-anchor="middle" dominant-baseline="central" class="t9b">PgBouncer</text>
+<text x="89" y="271" text-anchor="middle" dominant-baseline="central" class="t9">Connection pool</text>
+<text x="89" y="285" text-anchor="middle" dominant-baseline="central" class="t9">25 real PG conns</text>
+<line x1="156" y1="268" x2="170" y2="268" class="arr" marker-end="url(#mh1)"/>
+<rect x="172" y="240" width="396" height="56" rx="2" class="bx-white"/>
+<text x="370" y="255" text-anchor="middle" dominant-baseline="central" class="t9b">TimescaleDB  (PostgreSQL 16)</text>
+<text x="370" y="270" text-anchor="middle" dominant-baseline="central" class="t9"><tspan font-weight="bold">detections</tspan>  -  hypertable, 1-hr chunks, 72-hr retention</text>
+<text x="370" y="285" text-anchor="middle" dominant-baseline="central" class="t9"><tspan font-weight="bold">aggregation_summaries</tspan>  -  continuous aggregate, 1-min buckets</text>
+
+<line x1="175" y1="304" x2="175" y2="320" class="arr" marker-end="url(#mh1)"/>
+<text x="184" y="313" dominant-baseline="central" class="t8">query aggregation_summaries</text>
+
+<!-- L4: API Layer -->
+<rect x="10" y="322" width="572" height="78" rx="2" class="bx-yel"/>
+<line x1="10" y1="340" x2="582" y2="340" class="div-yel"/>
+<text x="20" y="334" dominant-baseline="central" class="t11b">L4  API Layer  (FastAPI + Uvicorn)</text>
+<text x="20" y="354" dominant-baseline="central" class="t9"><tspan font-weight="bold">REST</tspan>  -  auth, cameras, regions, intersections, videos, recommendations, ONVIF discovery</text>
+<text x="20" y="369" dominant-baseline="central" class="t9"><tspan font-weight="bold">SSE</tspan>  /aggregation/stream  -  asyncio poll every 5 s, fan-out to all connected clients</text>
+<text x="20" y="384" dominant-baseline="central" class="t9"><tspan font-weight="bold">MJPEG</tspan>  /cctvs/{id}/stream  -  Redis detection JSON overlay via OpenCV</text>
+
+<line x1="175" y1="400" x2="175" y2="416" class="arr" marker-end="url(#mh1)"/>
+<text x="184" y="409" dominant-baseline="central" class="t8">SSE + REST + MJPEG</text>
+
+<!-- L5: Client -->
+<rect x="10" y="418" width="572" height="78" rx="2" class="bx-org"/>
+<line x1="10" y1="436" x2="582" y2="436" class="div-org"/>
+<text x="20" y="430" dominant-baseline="central" class="t11b">L5  Client  (React 19 + TypeScript + Vite)</text>
+<text x="20" y="449" dominant-baseline="central" class="t9"><tspan font-weight="bold">SSE EventSource</tspan>  for live counts  |  <tspan font-weight="bold">MJPEG img</tspan>  for annotated camera stream</text>
+<text x="20" y="464" dominant-baseline="central" class="t9">Polygon region editor, Leaflet heatmap, reports, MUTCD warrant page, ONVIF import</text>
+<text x="20" y="479" dominant-baseline="central" class="t9">Served via <tspan font-weight="bold">nginx</tspan>  -  browser access on TMO local area network</text>
+
+<!-- Side column: Redis + RQ -->
+<rect x="598" y="106" width="132" height="42" rx="2" class="bx-red"/>
+<line x1="598" y1="122" x2="730" y2="122" class="div-red"/>
+<text x="664" y="116" text-anchor="middle" dominant-baseline="central" class="t9b">Redis</text>
+<text x="664" y="136" text-anchor="middle" dominant-baseline="central" class="t9">RQ queue + detection relay</text>
+
+<line x1="664" y1="148" x2="664" y2="162" class="arrr" marker-end="url(#mr1)"/>
+
+<rect x="598" y="164" width="132" height="42" rx="2" class="bx-red"/>
+<line x1="598" y1="180" x2="730" y2="180" class="div-red"/>
+<text x="664" y="174" text-anchor="middle" dominant-baseline="central" class="t9b">RQ Worker</text>
+<text x="664" y="192" text-anchor="middle" dominant-baseline="central" class="t9">Video + push notify jobs</text>
+
+<path d="M598 184 L585 184 L585 268 L582 268" class="arrr" marker-end="url(#mr1)"/>
+
+<!-- Legend -->
+<rect x="10"  y="510" width="10" height="10" rx="1" class="bx-blue"/>
+<text x="24"  y="515" dominant-baseline="central" class="t8">L1 Cameras</text>
+<rect x="96"  y="510" width="10" height="10" rx="1" class="bx-grn"/>
+<text x="110" y="515" dominant-baseline="central" class="t8">L2 Workers</text>
+<rect x="182" y="510" width="10" height="10" rx="1" class="bx-pur"/>
+<text x="196" y="515" dominant-baseline="central" class="t8">L3 Database</text>
+<rect x="276" y="510" width="10" height="10" rx="1" class="bx-yel"/>
+<text x="290" y="515" dominant-baseline="central" class="t8">L4 API</text>
+<rect x="340" y="510" width="10" height="10" rx="1" class="bx-org"/>
+<text x="354" y="515" dominant-baseline="central" class="t8">L5 Frontend</text>
+<rect x="428" y="510" width="10" height="10" rx="1" class="bx-red"/>
+<text x="442" y="515" dominant-baseline="central" class="t8">Background Jobs</text>
+</svg>
+<p class="fig-caption">Figure 1. EyeGila System Architecture (five-layer on-premises deployment on TMO Linux server)</p>
+</div>
+
+
+<!-- ============================================================
+     FIGURE 2: IPO Conceptual Framework
+============================================================ -->
+<div class="figure" id="fig2">
+<div class="fig-header">
+  <span class="fig-label">Figure 2 : IPO Conceptual Framework</span>
+  <button class="btn-save" onclick="saveFig('fig2','fig2-ipo')">Save PNG</button>
+</div>
+<svg viewBox="0 0 740 344" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="mh2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0 1L9 5L0 9Z" fill="#444"/>
+  </marker>
+  <pattern id="g2" width="20" height="20" patternUnits="userSpaceOnUse">
+    <circle cx="0.5" cy="0.5" r="0.6" fill="#e4e4e4"/>
+  </pattern>
+</defs>
+
+<rect width="740" height="344" fill="url(#g2)"/>
+
+<!-- Column headers -->
+<rect x="10"  y="10" width="218" height="24" rx="2" class="bx-blue"/>
+<text x="119" y="22" text-anchor="middle" dominant-baseline="central" class="t10b">INPUT</text>
+<rect x="261" y="10" width="218" height="24" rx="2" class="bx-grn"/>
+<text x="370" y="22" text-anchor="middle" dominant-baseline="central" class="t10b">PROCESS</text>
+<rect x="512" y="10" width="218" height="24" rx="2" class="bx-yel"/>
+<text x="621" y="22" text-anchor="middle" dominant-baseline="central" class="t10b">OUTPUT</text>
+
+<!-- Block arrows between columns (full-height span) -->
+<polygon points="228,174 248,174 248,168 261,182 248,196 248,190 228,190" fill="#555" opacity="0.55"/>
+<polygon points="479,174 499,174 499,168 512,182 499,196 499,190 479,190" fill="#555" opacity="0.55"/>
+
+<!-- ROW 1  y=42 -->
+<rect x="10"  y="42" width="218" height="40" rx="2" class="bx-blue"/>
+<text x="119" y="56" text-anchor="middle" dominant-baseline="central" class="t9b">RTSP video streams</text>
+<text x="119" y="72" text-anchor="middle" dominant-baseline="central" class="t9">Live from CCTV cameras</text>
+<rect x="261" y="42" width="218" height="40" rx="2" class="bx-grn"/>
+<text x="370" y="56" text-anchor="middle" dominant-baseline="central" class="t9b">YOLOv8 detection</text>
+<text x="370" y="72" text-anchor="middle" dominant-baseline="central" class="t9">eyegila_v3.pt, 6 object classes</text>
+<rect x="512" y="42" width="218" height="40" rx="2" class="bx-yel"/>
+<text x="621" y="56" text-anchor="middle" dominant-baseline="central" class="t9b">Real-time counts</text>
+<text x="621" y="72" text-anchor="middle" dominant-baseline="central" class="t9">Per intersection and approach</text>
+
+<!-- ROW 2  y=90 -->
+<rect x="10"  y="90" width="218" height="40" rx="2" class="bx-blue"/>
+<text x="119" y="104" text-anchor="middle" dominant-baseline="central" class="t9b">Polygon regions</text>
+<text x="119" y="120" text-anchor="middle" dominant-baseline="central" class="t9">Operator-drawn per approach</text>
+<rect x="261" y="90" width="218" height="40" rx="2" class="bx-grn"/>
+<text x="370" y="104" text-anchor="middle" dominant-baseline="central" class="t9b">ByteTrack tracking</text>
+<text x="370" y="120" text-anchor="middle" dominant-baseline="central" class="t9">Persistent IDs per object</text>
+<rect x="512" y="90" width="218" height="40" rx="2" class="bx-yel"/>
+<text x="621" y="104" text-anchor="middle" dominant-baseline="central" class="t9b">Annotated live stream</text>
+<text x="621" y="120" text-anchor="middle" dominant-baseline="central" class="t9">MJPEG with bounding boxes</text>
+
+<!-- ROW 3  y=138 -->
+<rect x="10"  y="138" width="218" height="40" rx="2" class="bx-blue"/>
+<text x="119" y="152" text-anchor="middle" dominant-baseline="central" class="t9b">Intersection config</text>
+<text x="119" y="168" text-anchor="middle" dominant-baseline="central" class="t9">Streets and GPS coordinates</text>
+<rect x="261" y="138" width="218" height="40" rx="2" class="bx-grn"/>
+<text x="370" y="152" text-anchor="middle" dominant-baseline="central" class="t9b">Region-based counting</text>
+<text x="370" y="168" text-anchor="middle" dominant-baseline="central" class="t9">Ray-casting, once per track per region</text>
+<rect x="512" y="138" width="218" height="40" rx="2" class="bx-yel"/>
+<text x="621" y="152" text-anchor="middle" dominant-baseline="central" class="t9b">Traffic heatmap</text>
+<text x="621" y="168" text-anchor="middle" dominant-baseline="central" class="t9">Leaflet map, color-coded by density</text>
+
+<!-- ROW 4  y=186 -->
+<rect x="10"  y="186" width="218" height="40" rx="2" class="bx-blue"/>
+<text x="119" y="200" text-anchor="middle" dominant-baseline="central" class="t9b">Uploaded video files</text>
+<text x="119" y="216" text-anchor="middle" dominant-baseline="central" class="t9">Recorded TMO footage</text>
+<rect x="261" y="186" width="218" height="40" rx="2" class="bx-grn"/>
+<text x="370" y="200" text-anchor="middle" dominant-baseline="central" class="t9b">TimescaleDB aggregation</text>
+<text x="370" y="216" text-anchor="middle" dominant-baseline="central" class="t9">1-min continuous aggregate buckets</text>
+<rect x="512" y="186" width="218" height="40" rx="2" class="bx-yel"/>
+<text x="621" y="200" text-anchor="middle" dominant-baseline="central" class="t9b">Historical reports</text>
+<text x="621" y="216" text-anchor="middle" dominant-baseline="central" class="t9">Per-approach trend, peak hour</text>
+
+<!-- ROW 5  y=234 -->
+<rect x="10"  y="234" width="218" height="40" rx="2" class="bx-blue"/>
+<text x="119" y="248" text-anchor="middle" dominant-baseline="central" class="t9b">Training dataset</text>
+<text x="119" y="264" text-anchor="middle" dominant-baseline="central" class="t9">Tagum City annotated footage</text>
+<rect x="261" y="234" width="218" height="40" rx="2" class="bx-grn"/>
+<text x="370" y="248" text-anchor="middle" dominant-baseline="central" class="t9b">MUTCD warrant analysis</text>
+<text x="370" y="264" text-anchor="middle" dominant-baseline="central" class="t9">Warrants 1, 2, and 4</text>
+<rect x="512" y="234" width="218" height="40" rx="2" class="bx-yel"/>
+<text x="621" y="248" text-anchor="middle" dominant-baseline="central" class="t9b">Warrant recommendations</text>
+<text x="621" y="264" text-anchor="middle" dominant-baseline="central" class="t9">Signal warranted or not warranted</text>
+
+<!-- ROW 6  y=282 -->
+<rect x="10"  y="282" width="218" height="40" rx="2" class="bx-blue"/>
+<text x="119" y="296" text-anchor="middle" dominant-baseline="central" class="t9b">Operator commands</text>
+<text x="119" y="312" text-anchor="middle" dominant-baseline="central" class="t9">Region draw, camera setup</text>
+<rect x="261" y="282" width="218" height="40" rx="2" class="bx-grn"/>
+<text x="370" y="296" text-anchor="middle" dominant-baseline="central" class="t9b">RQ background jobs</text>
+<text x="370" y="312" text-anchor="middle" dominant-baseline="central" class="t9">Video processing, push notify</text>
+<rect x="512" y="282" width="218" height="40" rx="2" class="bx-yel"/>
+<text x="621" y="296" text-anchor="middle" dominant-baseline="central" class="t9b">Push notifications</text>
+<text x="621" y="312" text-anchor="middle" dominant-baseline="central" class="t9">Video job completion alert</text>
+</svg>
+<p class="fig-caption">Figure 2. IPO Conceptual Framework (inputs, processes, and outputs of the system)</p>
+</div>
+
+
+<!-- ============================================================
+     FIGURE 3: Research Methodology
+============================================================ -->
+<div class="figure" id="fig3">
+<div class="fig-header">
+  <span class="fig-label">Figure 3 : Research Methodology (DRM)</span>
+  <button class="btn-save" onclick="saveFig('fig3','fig3-methodology')">Save PNG</button>
+</div>
+<svg viewBox="0 0 740 628" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="mh3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0 1L9 5L0 9Z" fill="#444"/>
+  </marker>
+  <marker id="md3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0 1L9 5L0 9Z" fill="#999"/>
+  </marker>
+  <pattern id="g3" width="20" height="20" patternUnits="userSpaceOnUse">
+    <circle cx="0.5" cy="0.5" r="0.6" fill="#e4e4e4"/>
+  </pattern>
+</defs>
+
+<rect width="740" height="628" fill="url(#g3)"/>
+
+<!-- Phase 1 -->
+<rect x="70" y="10" width="600" height="62" rx="2" class="bx-blue"/>
+<line x1="70" y1="28" x2="670" y2="28" class="div-blue"/>
+<circle cx="86" cy="19" r="7" fill="white" fill-opacity="0.35" stroke="white" stroke-opacity="0.6" stroke-width="0.5"/>
+<text x="86" y="19" text-anchor="middle" dominant-baseline="central" font-size="8" font-weight="bold" fill="white">1</text>
+<text x="370" y="22" text-anchor="middle" dominant-baseline="central" class="t11b">Phase 1  Requirements Analysis</text>
+<text x="370" y="44" text-anchor="middle" dominant-baseline="central" class="t9">Interviews with TMO personnel on current traffic monitoring needs</text>
+<text x="370" y="58" text-anchor="middle" dominant-baseline="central" class="t9">RTSP camera inventory, MUTCD warrant threshold review</text>
+
+<line x1="370" y1="72" x2="370" y2="90" class="arr" marker-end="url(#mh3)"/>
+
+<!-- Phase 2 -->
+<rect x="70" y="92" width="600" height="96" rx="2" class="bx-org"/>
+<line x1="70" y1="110" x2="670" y2="110" class="div-org"/>
+<circle cx="86" cy="101" r="7" fill="white" fill-opacity="0.35" stroke="white" stroke-opacity="0.6" stroke-width="0.5"/>
+<text x="86" y="101" text-anchor="middle" dominant-baseline="central" font-size="8" font-weight="bold" fill="white">2</text>
+<text x="370" y="104" text-anchor="middle" dominant-baseline="central" class="t11b">Phase 2  Data Collection and Model Training</text>
+<text x="370" y="124" text-anchor="middle" dominant-baseline="central" class="t9">On-site footage: peak, off-peak, nighttime  |  supplemented with COCO and VisDrone datasets</text>
+<text x="370" y="140" text-anchor="middle" dominant-baseline="central" class="t9">Roboflow annotation, 640x640 resize, augmentation: rotation, flip, brightness, noise</text>
+<text x="370" y="156" text-anchor="middle" dominant-baseline="central" class="t9"><tspan font-weight="bold">70/15/15</tspan> train-val-test split, YOLOv8 transfer learning, saved as <tspan font-weight="bold">eyegila_v3.pt</tspan></text>
+<text x="370" y="172" text-anchor="middle" dominant-baseline="central" class="t9">Metrics: <tspan font-weight="bold">mAP@0.5</tspan>, Precision, Recall, F1-Score, FPS</text>
+
+<line x1="370" y1="188" x2="370" y2="206" class="arr" marker-end="url(#mh3)"/>
+
+<!-- Phase 3 -->
+<rect x="70" y="208" width="600" height="80" rx="2" class="bx-pur"/>
+<line x1="70" y1="226" x2="670" y2="226" class="div-pur"/>
+<circle cx="86" cy="217" r="7" fill="white" fill-opacity="0.35" stroke="white" stroke-opacity="0.6" stroke-width="0.5"/>
+<text x="86" y="217" text-anchor="middle" dominant-baseline="central" font-size="8" font-weight="bold" fill="white">3</text>
+<text x="370" y="220" text-anchor="middle" dominant-baseline="central" class="t11b">Phase 3  System Design and Architecture</text>
+<text x="370" y="242" text-anchor="middle" dominant-baseline="central" class="t9">TimescaleDB schema, worker claim mechanism, heartbeat system, Redis relay</text>
+<text x="370" y="258" text-anchor="middle" dominant-baseline="central" class="t9">FastAPI endpoints, SSE stream, React component architecture, region editor</text>
+<text x="370" y="274" text-anchor="middle" dominant-baseline="central" class="t9">Warrant module, Docker Compose services, nginx deployment</text>
+
+<line x1="370" y1="288" x2="370" y2="306" class="arr" marker-end="url(#mh3)"/>
+
+<!-- Phase 4 -->
+<rect x="70" y="308" width="600" height="96" rx="2" class="bx-grn"/>
+<line x1="70" y1="326" x2="670" y2="326" class="div-grn"/>
+<circle cx="86" cy="317" r="7" fill="white" fill-opacity="0.35" stroke="white" stroke-opacity="0.6" stroke-width="0.5"/>
+<text x="86" y="317" text-anchor="middle" dominant-baseline="central" font-size="8" font-weight="bold" fill="white">4</text>
+<text x="370" y="320" text-anchor="middle" dominant-baseline="central" class="t11b">Phase 4  Implementation</text>
+<text x="370" y="342" text-anchor="middle" dominant-baseline="central" class="t9">Worker pool: YOLOv8 + ByteTrack inference loop, 300 ms batch writes via PgBouncer</text>
+<text x="370" y="358" text-anchor="middle" dominant-baseline="central" class="t9">FastAPI REST and SSE, React dashboard, polygon region editor, MJPEG stream overlay</text>
+<text x="370" y="374" text-anchor="middle" dominant-baseline="central" class="t9">MUTCD warrant page, Leaflet heatmap, RQ video pipeline, VAPID Web Push, ONVIF discovery</text>
+<text x="370" y="390" text-anchor="middle" dominant-baseline="central" class="t9">Docker Compose deployment, fake detection seed script for development</text>
+
+<line x1="370" y1="404" x2="370" y2="422" class="arr" marker-end="url(#mh3)"/>
+
+<!-- Phase 5 -->
+<rect x="70" y="424" width="600" height="106" rx="2" class="bx-yel"/>
+<line x1="70" y1="442" x2="670" y2="442" class="div-yel"/>
+<circle cx="86" cy="433" r="7" fill="white" fill-opacity="0.35" stroke="white" stroke-opacity="0.6" stroke-width="0.5"/>
+<text x="86" y="433" text-anchor="middle" dominant-baseline="central" font-size="8" font-weight="bold" fill="white">5</text>
+<text x="370" y="436" text-anchor="middle" dominant-baseline="central" class="t11b">Phase 5  Testing and Evaluation</text>
+<text x="370" y="458" text-anchor="middle" dominant-baseline="central" class="t9">Detection: <tspan font-weight="bold">mAP@0.5</tspan>, Precision, Recall, F1-Score, FPS vs. baseline models</text>
+<text x="370" y="474" text-anchor="middle" dominant-baseline="central" class="t9">System: FPS throughput, SSE latency, DB write throughput under multi-camera load</text>
+<text x="370" y="490" text-anchor="middle" dominant-baseline="central" class="t9">Distributed: multi-worker claim correctness, 60 s crash-and-reclaim behavior</text>
+<text x="370" y="506" text-anchor="middle" dominant-baseline="central" class="t9">Functional: detection to count to aggregate to warrant calculation end-to-end</text>
+<text x="370" y="522" text-anchor="middle" dominant-baseline="central" class="t9">Usability: <tspan font-weight="bold">SUS</tspan> testing with TMO personnel</text>
+
+<!-- Refinement feedback arrow: Phase 5 back to Phase 3 -->
+<path d="M70 477 L44 477 L44 248 L68 248" fill="none" class="arrd" marker-end="url(#md3)"/>
+<text x="40" y="362" text-anchor="middle" class="t8" fill="#aaa" transform="rotate(-90 40 362)">refine</text>
+
+<line x1="370" y1="530" x2="370" y2="548" class="arr" marker-end="url(#mh3)"/>
+
+<!-- Deployed -->
+<rect x="210" y="550" width="320" height="60" rx="2" class="bx-gray"/>
+<line x1="210" y1="568" x2="530" y2="568" class="div-gray"/>
+<text x="370" y="562" text-anchor="middle" dominant-baseline="central" class="t11b">Deployed EyeGila System</text>
+<text x="370" y="580" text-anchor="middle" dominant-baseline="central" class="t9">24/7 monitoring on TMO LAN</text>
+<text x="370" y="596" text-anchor="middle" dominant-baseline="central" class="t9">Warrant recommendations accessible via browser</text>
+</svg>
+<p class="fig-caption">Figure 3. Research Methodology - Design Research Methodology (DRM), five phases</p>
+</div>
+
+
+<!-- ============================================================
+     FIGURE 4: Data Flow Diagram
+============================================================ -->
+<div class="figure" id="fig4">
+<div class="fig-header">
+  <span class="fig-label">Figure 4 : Live Detection Data Flow</span>
+  <button class="btn-save" onclick="saveFig('fig4','fig4-dataflow')">Save PNG</button>
+</div>
+<svg viewBox="0 0 740 476" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="mh4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0 1L9 5L0 9Z" fill="#444"/>
+  </marker>
+  <marker id="mg4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0 1L9 5L0 9Z" fill="#82b366"/>
+  </marker>
+  <pattern id="g4" width="20" height="20" patternUnits="userSpaceOnUse">
+    <circle cx="0.5" cy="0.5" r="0.6" fill="#e4e4e4"/>
+  </pattern>
+</defs>
+
+<rect width="740" height="476" fill="url(#g4)"/>
+
+<!-- Step 1 -->
+<rect x="220" y="10" width="300" height="46" rx="2" class="bx-blue"/>
+<line x1="220" y1="26" x2="520" y2="26" class="div-blue"/>
+<text x="370" y="22" text-anchor="middle" dominant-baseline="central" class="t9b">Vehicle enters camera frame</text>
+<text x="370" y="42" text-anchor="middle" dominant-baseline="central" class="t9">OpenCV reads RTSP stream, frame decoded</text>
+
+<line x1="370" y1="56" x2="370" y2="74" class="arr" marker-end="url(#mh4)"/>
+
+<!-- Step 2 -->
+<rect x="200" y="76" width="340" height="46" rx="2" class="bx-grn"/>
+<line x1="200" y1="92" x2="540" y2="92" class="div-grn"/>
+<text x="370" y="88" text-anchor="middle" dominant-baseline="central" class="t9b">YOLOv8 Inference  (eyegila_v3.pt)</text>
+<text x="370" y="108" text-anchor="middle" dominant-baseline="central" class="t9">Class label, bounding box, confidence per detection</text>
+
+<line x1="370" y1="122" x2="370" y2="140" class="arr" marker-end="url(#mh4)"/>
+
+<!-- Step 3 -->
+<rect x="210" y="142" width="320" height="46" rx="2" class="bx-grn"/>
+<line x1="210" y1="158" x2="530" y2="158" class="div-grn"/>
+<text x="370" y="154" text-anchor="middle" dominant-baseline="central" class="t9b">ByteTrack  -  Assign Track ID</text>
+<text x="370" y="174" text-anchor="middle" dominant-baseline="central" class="t9">Persistent ID across frames, one TrackState per object</text>
+
+<line x1="370" y1="188" x2="370" y2="210" class="arr" marker-end="url(#mh4)"/>
+
+<!-- Decision diamond -->
+<polygon points="370,212 510,248 370,284 230,248" fill="#fff2cc" stroke="#d6b656" stroke-width="1"/>
+<text x="370" y="242" text-anchor="middle" dominant-baseline="central" class="t9b">Center inside polygon region?</text>
+<text x="370" y="258" text-anchor="middle" dominant-baseline="central" class="t9">Ray-casting algorithm</text>
+
+<!-- No branch -->
+<line x1="510" y1="248" x2="568" y2="248" class="arrd" marker-end="url(#mh4)"/>
+<text x="530" y="240" text-anchor="middle" class="t8">No</text>
+<rect x="570" y="230" width="110" height="36" rx="2" class="bx-gray"/>
+<text x="625" y="244" text-anchor="middle" dominant-baseline="central" class="t9b">Skip</text>
+<text x="625" y="258" text-anchor="middle" dominant-baseline="central" class="t8">next frame</text>
+
+<!-- Yes branch -->
+<line x1="370" y1="284" x2="370" y2="302" class="arr" marker-end="url(#mg4)"/>
+<text x="382" y="294" dominant-baseline="central" class="t8" fill="#82b366">Yes</text>
+
+<!-- Step 5: Write to DB -->
+<rect x="120" y="304" width="500" height="46" rx="2" class="bx-pur"/>
+<line x1="120" y1="320" x2="620" y2="320" class="div-pur"/>
+<text x="370" y="316" text-anchor="middle" dominant-baseline="central" class="t9b">Write to TimescaleDB via PgBouncer</text>
+<text x="370" y="336" text-anchor="middle" dominant-baseline="central" class="t9">INSERT detections + detections_in_regions, <tspan font-weight="bold">bulk_insert_mappings</tspan> every <tspan font-weight="bold">300 ms</tspan></text>
+
+<!-- Split arrows -->
+<path d="M240 350 L240 376 L185 376 L185 394" fill="none" class="arr" marker-end="url(#mh4)"/>
+<path d="M500 350 L500 376 L555 376 L555 394" fill="none" class="arr" marker-end="url(#mh4)"/>
+<text x="178" y="375" text-anchor="end" class="t8">every ~1 min</text>
+<text x="562" y="375" class="t8">every 5 s</text>
+
+<!-- aggregation_summaries -->
+<rect x="30"  y="396" width="308" height="60" rx="2" class="bx-blue"/>
+<line x1="30"  y1="414" x2="338" y2="414" class="div-blue"/>
+<text x="184" y="408" text-anchor="middle" dominant-baseline="central" class="t9b">aggregation_summaries</text>
+<text x="184" y="428" text-anchor="middle" dominant-baseline="central" class="t9">TimescaleDB continuous aggregate</text>
+<text x="184" y="444" text-anchor="middle" dominant-baseline="central" class="t9">1-min buckets, per intersection and street</text>
+
+<!-- SSE endpoint -->
+<rect x="402" y="396" width="308" height="60" rx="2" class="bx-yel"/>
+<line x1="402" y1="414" x2="710" y2="414" class="div-yel"/>
+<text x="556" y="408" text-anchor="middle" dominant-baseline="central" class="t9b">SSE Stream</text>
+<text x="556" y="428" text-anchor="middle" dominant-baseline="central" class="t9">Asyncio fan-out to all clients every 5 s</text>
+<text x="556" y="444" text-anchor="middle" dominant-baseline="central" class="t9">React dashboard updates in real time</text>
+</svg>
+<p class="fig-caption">Figure 4. Live Detection Data Flow (camera frame to TimescaleDB to SSE to React dashboard)</p>
+</div>
+
+
+<!-- ============================================================
+     FIGURE 5: Database Schema (ER Diagram)
+============================================================ -->
+<div class="figure" id="fig5">
+<div class="fig-header">
+  <span class="fig-label">Figure 5 : Database Schema (ER)</span>
+  <button class="btn-save" onclick="saveFig('fig5','fig5-schema')">Save PNG</button>
+</div>
+<svg viewBox="0 0 740 548" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="mh5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M0 1L9 5L0 9Z" fill="#888"/>
+  </marker>
+  <pattern id="g5" width="20" height="20" patternUnits="userSpaceOnUse">
+    <circle cx="0.5" cy="0.5" r="0.6" fill="#e4e4e4"/>
+  </pattern>
+</defs>
+
+<rect width="740" height="548" fill="url(#g5)"/>
+
+<!-- intersections  x=260 y=20 w=220 h=80 -->
+<rect x="260" y="20" width="220" height="80" rx="2" class="bx-white"/>
+<rect x="260" y="20" width="220" height="20" rx="2" style="fill:#6c8ebf;stroke:#6c8ebf;stroke-width:1;"/>
+<rect x="260" y="32" width="220" height="8" style="fill:#6c8ebf;stroke:#6c8ebf;stroke-width:1;"/>
+<text x="370" y="32" text-anchor="middle" dominant-baseline="central" class="t9wh">intersections</text>
+<text x="272" y="52" dominant-baseline="central" class="t8pk">PK</text>
+<text x="292" y="52" dominant-baseline="central" class="t9m">id</text>
+<text x="272" y="65" dominant-baseline="central" class="t9m">   name, latitude, longitude</text>
+<text x="272" y="78" dominant-baseline="central" class="t9m">   time</text>
+
+<!-- streets  x=20 y=176 w=190 h=80 -->
+<rect x="20" y="176" width="190" height="80" rx="2" class="bx-white"/>
+<rect x="20" y="176" width="190" height="20" rx="2" style="fill:#9673a6;stroke:#9673a6;stroke-width:1;"/>
+<rect x="20" y="188" width="190" height="8" style="fill:#9673a6;stroke:#9673a6;stroke-width:1;"/>
+<text x="115" y="188" text-anchor="middle" dominant-baseline="central" class="t9wh">streets</text>
+<text x="32" y="210" dominant-baseline="central" class="t8pk">PK</text>
+<text x="52" y="210" dominant-baseline="central" class="t9m">id</text>
+<text x="32" y="223" dominant-baseline="central" class="t8fk">FK</text>
+<text x="52" y="223" dominant-baseline="central" class="t9m">intersection_id</text>
+<text x="32" y="236" dominant-baseline="central" class="t9m">   name</text>
+<text x="32" y="248" dominant-baseline="central" class="t9m">   time</text>
+
+<!-- cctvs  x=510 y=176 w=214 h=94 -->
+<rect x="510" y="176" width="214" height="94" rx="2" class="bx-white"/>
+<rect x="510" y="176" width="214" height="20" rx="2" style="fill:#82b366;stroke:#82b366;stroke-width:1;"/>
+<rect x="510" y="188" width="214" height="8" style="fill:#82b366;stroke:#82b366;stroke-width:1;"/>
+<text x="617" y="188" text-anchor="middle" dominant-baseline="central" class="t9wh">cctvs</text>
+<text x="522" y="210" dominant-baseline="central" class="t8pk">PK</text>
+<text x="542" y="210" dominant-baseline="central" class="t9m">id</text>
+<text x="522" y="223" dominant-baseline="central" class="t8fk">FK</text>
+<text x="542" y="223" dominant-baseline="central" class="t9m">intersection_id</text>
+<text x="522" y="236" dominant-baseline="central" class="t9m">   name, rtsp_url</text>
+<text x="522" y="249" dominant-baseline="central" class="t9m">   status, is_being_viewed</text>
+<text x="522" y="262" dominant-baseline="central" class="t9m">   time</text>
+
+<!-- regions  x=126 y=346 w=200 h=80 -->
+<rect x="126" y="346" width="200" height="80" rx="2" class="bx-white"/>
+<rect x="126" y="346" width="200" height="20" rx="2" style="fill:#d79b00;stroke:#d79b00;stroke-width:1;"/>
+<rect x="126" y="358" width="200" height="8" style="fill:#d79b00;stroke:#d79b00;stroke-width:1;"/>
+<text x="226" y="358" text-anchor="middle" dominant-baseline="central" class="t9wh">regions</text>
+<text x="138" y="378" dominant-baseline="central" class="t8pk">PK</text>
+<text x="158" y="378" dominant-baseline="central" class="t9m">id</text>
+<text x="138" y="391" dominant-baseline="central" class="t8fk">FK</text>
+<text x="158" y="391" dominant-baseline="central" class="t9m">cctv_id, street_id</text>
+<text x="138" y="404" dominant-baseline="central" class="t9m">   direction</text>
+<text x="138" y="417" dominant-baseline="central" class="t9m">   (polygon zone)</text>
+
+<!-- detections  x=510 y=346 w=214 h=80 -->
+<rect x="510" y="346" width="214" height="80" rx="2" class="bx-white"/>
+<rect x="510" y="346" width="214" height="20" rx="2" style="fill:#b85450;stroke:#b85450;stroke-width:1;"/>
+<rect x="510" y="358" width="214" height="8" style="fill:#b85450;stroke:#b85450;stroke-width:1;"/>
+<text x="617" y="358" text-anchor="middle" dominant-baseline="central" class="t9wh">detections  (hypertable)</text>
+<text x="522" y="378" dominant-baseline="central" class="t8pk">PK</text>
+<text x="542" y="378" dominant-baseline="central" class="t9m">id</text>
+<text x="522" y="391" dominant-baseline="central" class="t8fk">FK</text>
+<text x="542" y="391" dominant-baseline="central" class="t9m">cctv_id</text>
+<text x="522" y="404" dominant-baseline="central" class="t9m">   object_type, confidence</text>
+<text x="522" y="417" dominant-baseline="central" class="t9m">   x1, y1, x2, y2, time</text>
+
+<!-- region_points  x=20 y=470 w=190 h=66 -->
+<rect x="20" y="470" width="190" height="66" rx="2" class="bx-white"/>
+<rect x="20" y="470" width="190" height="20" rx="2" style="fill:#5d7680;stroke:#5d7680;stroke-width:1;"/>
+<rect x="20" y="482" width="190" height="8" style="fill:#5d7680;stroke:#5d7680;stroke-width:1;"/>
+<text x="115" y="482" text-anchor="middle" dominant-baseline="central" class="t9wh">region_points</text>
+<text x="32" y="502" dominant-baseline="central" class="t8pk">PK</text>
+<text x="52" y="502" dominant-baseline="central" class="t9m">id</text>
+<text x="32" y="515" dominant-baseline="central" class="t8fk">FK</text>
+<text x="52" y="515" dominant-baseline="central" class="t9m">region_id</text>
+<text x="32" y="528" dominant-baseline="central" class="t9m">   x, y  (polygon vertex, 0-1 norm)</text>
+
+<!-- detections_in_regions  x=320 y=470 w=222 h=66 -->
+<rect x="320" y="470" width="222" height="66" rx="2" class="bx-white"/>
+<rect x="320" y="470" width="222" height="20" rx="2" style="fill:#666666;stroke:#666666;stroke-width:1;"/>
+<rect x="320" y="482" width="222" height="8" style="fill:#666666;stroke:#666666;stroke-width:1;"/>
+<text x="431" y="482" text-anchor="middle" dominant-baseline="central" class="t9wh">detections_in_regions</text>
+<text x="332" y="502" dominant-baseline="central" class="t8pk">PK</text>
+<text x="352" y="502" dominant-baseline="central" class="t9m">id</text>
+<text x="332" y="515" dominant-baseline="central" class="t8fk">FK</text>
+<text x="352" y="515" dominant-baseline="central" class="t9m">region_id, detection_id</text>
+<text x="332" y="528" dominant-baseline="central" class="t9m">   time  (entry event)</text>
+
+<!-- Relationship lines -->
+<!-- intersections 1 -- N streets -->
+<line x1="340" y1="100" x2="210" y2="176" class="arr3" marker-end="url(#mh5)"/>
+<text x="330" y="128" text-anchor="middle" class="t8b">1</text>
+<text x="222" y="165" text-anchor="middle" class="t8b">N</text>
+
+<!-- intersections 1 -- N cctvs -->
+<line x1="400" y1="100" x2="530" y2="176" class="arr3" marker-end="url(#mh5)"/>
+<text x="410" y="128" text-anchor="middle" class="t8b">1</text>
+<text x="516" y="165" text-anchor="middle" class="t8b">N</text>
+
+<!-- streets 1 -- N regions -->
+<line x1="115" y1="256" x2="190" y2="346" class="arr3" marker-end="url(#mh5)"/>
+<text x="128" y="284" class="t8b">1</text>
+<text x="175" y="336" class="t8b">N</text>
+
+<!-- cctvs 1 -- N regions -->
+<line x1="510" y1="226" x2="326" y2="346" class="arr3" marker-end="url(#mh5)"/>
+<text x="490" y="255" text-anchor="middle" class="t8b">1</text>
+<text x="342" y="335" text-anchor="middle" class="t8b">N</text>
+
+<!-- cctvs 1 -- N detections -->
+<line x1="617" y1="270" x2="617" y2="346" class="arr3" marker-end="url(#mh5)"/>
+<text x="627" y="298" class="t8b">1</text>
+<text x="627" y="337" class="t8b">N</text>
+
+<!-- regions 1 -- N region_points -->
+<line x1="182" y1="426" x2="115" y2="470" class="arr3" marker-end="url(#mh5)"/>
+<text x="177" y="446" text-anchor="end" class="t8b">1</text>
+<text x="124" y="461" class="t8b">N</text>
+
+<!-- regions 1 -- N detections_in_regions -->
+<line x1="270" y1="426" x2="388" y2="470" class="arr3" marker-end="url(#mh5)"/>
+<text x="275" y="446" class="t8b">1</text>
+<text x="375" y="461" class="t8b">N</text>
+
+<!-- detections 1 -- N detections_in_regions -->
+<line x1="617" y1="426" x2="542" y2="470" class="arr3" marker-end="url(#mh5)"/>
+<text x="620" y="445" class="t8b">1</text>
+<text x="540" y="461" text-anchor="end" class="t8b">N</text>
+</svg>
+<p class="fig-caption">Figure 5. Database Schema (ER diagram showing table relationships and key fields)</p>
+</div>
+
+<script>
+const SVG_CSS = `
+  text { font-family: Arial, Helvetica, sans-serif; }
+  .bx-blue  { fill: #dae8fc; stroke: #6c8ebf; stroke-width: 1; }
+  .bx-grn   { fill: #d5e8d4; stroke: #82b366; stroke-width: 1; }
+  .bx-yel   { fill: #fff2cc; stroke: #d6b656; stroke-width: 1; }
+  .bx-org   { fill: #ffe6cc; stroke: #d79b00; stroke-width: 1; }
+  .bx-red   { fill: #f8cecc; stroke: #b85450; stroke-width: 1; }
+  .bx-pur   { fill: #e1d5e7; stroke: #9673a6; stroke-width: 1; }
+  .bx-gray  { fill: #f5f5f5; stroke: #cccccc; stroke-width: 1; }
+  .bx-white { fill: #ffffff; stroke: #cccccc; stroke-width: 1; }
+  .bx-dk    { fill: #2d3748; stroke: #2d3748; stroke-width: 1; }
+  .div-blue  { stroke: #6c8ebf; stroke-width: 1; fill: none; }
+  .div-grn   { stroke: #82b366; stroke-width: 1; fill: none; }
+  .div-yel   { stroke: #d6b656; stroke-width: 1; fill: none; }
+  .div-org   { stroke: #d79b00; stroke-width: 1; fill: none; }
+  .div-red   { stroke: #b85450; stroke-width: 1; fill: none; }
+  .div-pur   { stroke: #9673a6; stroke-width: 1; fill: none; }
+  .div-gray  { stroke: #cccccc; stroke-width: 1; fill: none; }
+  .t11b { font-size: 11px; font-weight: bold; fill: #222; }
+  .t10b { font-size: 10px; font-weight: bold; fill: #222; }
+  .t9b  { font-size: 9px;  font-weight: bold; fill: #333; }
+  .t9   { font-size: 9px;  fill: #555; }
+  .t8b  { font-size: 8px;  font-weight: bold; fill: #444; }
+  .t8   { font-size: 8px;  fill: #777; }
+  .t9m  { font-size: 9px;  fill: #555; font-family: 'Courier New', monospace; }
+  .t8pk { font-size: 8px;  fill: #b85450; font-family: 'Courier New', monospace; font-weight: bold; }
+  .t8fk { font-size: 8px;  fill: #6c8ebf; font-family: 'Courier New', monospace; font-weight: bold; }
+  .t9wh { font-size: 9px;  fill: #ffffff; font-weight: bold; }
+  .arr  { fill: none; stroke: #444; stroke-width: 1.2; }
+  .arrd { fill: none; stroke: #999; stroke-width: 1; stroke-dasharray: 5 3; }
+  .arrr { fill: none; stroke: #b85450; stroke-width: 1; stroke-dasharray: 4 3; }
+  .arr3 { fill: none; stroke: #888; stroke-width: 1; }
+`;
+
+function saveFig(figId, filename) {
+  const container = document.getElementById(figId);
+  const origSvg = container.querySelector('svg');
+  const vb = origSvg.viewBox.baseVal;
+  const scale = 2;
+
+  const svg = origSvg.cloneNode(true);
+  const ns = 'http://www.w3.org/2000/svg';
+  let defs = svg.querySelector('defs');
+  if (!defs) {
+    defs = document.createElementNS(ns, 'defs');
+    svg.insertBefore(defs, svg.firstChild);
+  }
+  const styleEl = document.createElementNS(ns, 'style');
+  styleEl.textContent = SVG_CSS;
+  defs.appendChild(styleEl);
+  svg.setAttribute('width', vb.width * scale);
+  svg.setAttribute('height', vb.height * scale);
+
+  const xml = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = vb.width * scale;
+  canvas.height = vb.height * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const img = new Image();
+  img.onload = () => {
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    const a = document.createElement('a');
+    a.download = filename + '.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    const svgBlob = new Blob([xml], { type: 'image/svg+xml' });
+    const a = document.createElement('a');
+    a.download = filename + '.svg';
+    a.href = URL.createObjectURL(svgBlob);
+    a.click();
+  };
+  img.src = url;
+}
+</script>
+</body>
+</html>

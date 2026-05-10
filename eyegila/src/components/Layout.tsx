@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import {
   LayoutDashboard, BarChart3, Camera, MapPin,
   Video, Lightbulb, Users, LogOut,
-  Wifi, WifiOff, Loader2,
+  Wifi, WifiOff, Loader2, BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -26,6 +26,7 @@ const NAV_ITEMS = [
   { to: '/videos',          label: 'Videos',           icon: Video },
   { to: '/recommendations', label: 'Recommendations',  icon: Lightbulb },
   { to: '/users',           label: 'Users',            icon: Users },
+  { to: '/manual',          label: 'Manual',           icon: BookOpen },
 ];
 
 function SSEIndicator({ status }: { status: SSEStatus }) {

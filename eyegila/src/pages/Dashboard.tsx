@@ -1,5 +1,6 @@
 import { useOutletContext, useSearchParams, Link } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { SetupGuide } from '@/components/SetupGuide';
 import { cctvsApi } from '@/services/cctvs';
 import { streetsApi } from '@/services/streets';
 import { intersectionsApi } from '@/services/intersections';
@@ -354,6 +355,9 @@ export function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Setup guide (shown until dismissed or complete) */}
+      <SetupGuide />
 
       {/* ── Hero stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

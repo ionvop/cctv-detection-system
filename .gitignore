@@ -1,14 +1,16 @@
 *.pt
 .env
 
-scripts/
+scripts/.venv/
+scripts/venv/
+scripts/__pycache__/
 
 venv/
 .venv/
 .venv/*
 .venv
-*.pt
-.env
 
 node_modules
 .vite/
+skills
+agent-skills/
