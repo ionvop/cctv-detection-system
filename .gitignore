@@ -1,4 +1,4 @@
-*.pt
+yolov8*.pt
 .env
 
 scripts/.venv/
