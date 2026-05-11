@@ -45,7 +45,7 @@ export async function request<T>(
   const res = await fetch(`/api${path}`, { ...fetchOptions, headers });
 
   if (!res.ok) {
-    if (res.status === 401) {
+    if (res.status === 401 && !skipAuth) {
       _onUnauthorized?.();
     }
     let detail = res.statusText;
