@@ -20,7 +20,7 @@ from common import models
 from common.database import Base, SessionLocal, engine
 from worker.claim import try_claim_camera, release_camera, verify_claim
 from worker.heartbeat import HeartbeatThread
-from worker.stream import open_stream, reconnect_stream, resolve_rtsp_url
+from worker.stream import open_stream, reconnect_stream, resolve_rtsp_url, _stream_is_live
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 _redis = redis_lib.from_url(REDIS_URL)
@@ -78,7 +78,8 @@ def _camera_reader(
     """Read frames from one RTSP stream, always keeping the queue fresh."""
     db = SessionLocal()
     cap = open_stream(rtsp_url, args.debug)
-    if not cap.isOpened():
+    if not _stream_is_live(cap):
+        cap.release()
         cap = reconnect_stream(rtsp_url, args.debug, db, cctv_id)
     try:
         while not stop_event.is_set():
