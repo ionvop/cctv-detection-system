@@ -5,7 +5,8 @@ import queue as stdlib_queue
 import threading
 import time
 
-os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
+os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS",
+                      "rtsp_transport;tcp|stimeout;5000000")  # 5 s socket timeout
 
 import cv2
 import numpy as np
@@ -318,6 +319,12 @@ async def camera_ws(websocket: WebSocket, cctv_id: int, token: str = "", overlay
         while True:
             try:
                 frame_bytes = await asyncio.to_thread(frame_q.get, True, 5.0)
+            except stdlib_queue.Empty:
+                # No frame within 5 s — _capture_thread is reconnecting to RTSP.
+                # Keep the WebSocket alive; break only if the thread has died.
+                if not thread.is_alive():
+                    break
+                continue
             except Exception:
                 break
             frame_count += 1
