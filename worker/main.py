@@ -18,6 +18,7 @@ from ultralytics import YOLO
 
 from common import models
 from common.database import Base, SessionLocal, engine
+from common.geometry import is_point_in_polygon
 from worker.claim import try_claim_camera, release_camera, verify_claim
 from worker.heartbeat import HeartbeatThread
 from worker.stream import open_stream, reconnect_stream, resolve_rtsp_url, _stream_is_live
@@ -25,15 +26,16 @@ from worker.stream import open_stream, reconnect_stream, resolve_rtsp_url, _stre
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 _redis = redis_lib.from_url(REDIS_URL)
 
-CAMERAS_PER_WORKER  = int(os.getenv("CAMERAS_PER_WORKER", "16"))
-INFERENCE_EVERY_N   = int(os.getenv("INFERENCE_EVERY_N", "1"))   # process 1-in-N frames for DB writes
-PRUNE_INTERVAL_SEC  = 10
-TRACK_MAX_AGE_SEC   = 30
-FPS_SAMPLE_INTERVAL = 30
-FLUSH_INTERVAL_SEC  = 0.3
-MAX_BUFFER_SIZE     = 1000
-CLAIM_CHECK_FRAMES  = 100
-RECLAIM_INTERVAL    = 5.0   # seconds between slot-fill attempts
+CAMERAS_PER_WORKER    = int(os.getenv("CAMERAS_PER_WORKER", "16"))
+INFERENCE_EVERY_N     = int(os.getenv("INFERENCE_EVERY_N", "1"))   # process 1-in-N frames for DB writes
+PRUNE_INTERVAL_SEC    = 10
+TRACK_MAX_AGE_SEC     = 30
+FPS_SAMPLE_INTERVAL   = 30
+FLUSH_INTERVAL_SEC    = 0.3
+MAX_BUFFER_SIZE       = 1000
+CLAIM_CHECK_FRAMES    = 100
+RECLAIM_INTERVAL      = 5.0   # seconds between slot-fill attempts
+REGION_REFRESH_SEC    = 60.0  # re-read regions from DB in case polygons changed
 
 _DUMMY_FRAME = np.zeros((480, 854, 3), dtype=np.uint8)
 
@@ -66,6 +68,7 @@ class CameraSlot:
     fps_timer_start: float = field(default_factory=time.time)
     claim_lost: bool = False
     last_frame: Optional[np.ndarray] = None   # held for fixed-order batching
+    last_region_refresh_ts: float = field(default_factory=time.time)
 
 
 def _camera_reader(
@@ -290,6 +293,15 @@ def main() -> None:
                     prune_tracks(slot.track_states)
                     slot.last_prune_ts = now
 
+                # refresh region polygons in case they changed in the DB
+                if now - slot.last_region_refresh_ts >= REGION_REFRESH_SEC:
+                    _rdb = SessionLocal()
+                    try:
+                        slot.regions = initialize_regions(_rdb, slot.cctv_id)
+                    finally:
+                        _rdb.close()
+                    slot.last_region_refresh_ts = now
+
                 # verify claim fencing token
                 if slot.frame_count % CLAIM_CHECK_FRAMES == 0:
                     if not verify_claim(db, slot.cctv_id, slot.claim_version):
@@ -428,21 +440,6 @@ def prune_tracks(track_states: dict, max_age_seconds: float = TRACK_MAX_AGE_SEC)
     stale = [tid for tid, s in track_states.items() if now - s.last_seen_ts > max_age_seconds]
     for tid in stale:
         del track_states[tid]
-
-
-def is_point_in_polygon(point: tuple, polygon: list) -> bool:
-    if len(polygon) < 3:
-        return False
-    x, y = point
-    inside = False
-    n = len(polygon)
-    for i in range(n):
-        x1, y1 = polygon[i]
-        x2, y2 = polygon[(i + 1) % n]
-        if (y1 > y) != (y2 > y):
-            if x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
-                inside = not inside
-    return inside
 
 
 def draw_regions(frame: np.ndarray, regions: list, frame_w: int, frame_h: int) -> np.ndarray:

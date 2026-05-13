@@ -10,10 +10,10 @@ export const recommendationsApi = {
     return request('/recommendations/');
   },
   generate(intersectionId: number): Promise<RecommendationResponse> {
-    return request(`/recommendations/generate/${intersectionId}`, { method: 'POST' });
+    return request(`/recommendations/${intersectionId}`, { method: 'POST' });
   },
   generateAll(): Promise<RecommendationResponse[]> {
-    return request('/recommendations/generate-all', { method: 'POST' });
+    return request('/recommendations/bulk', { method: 'POST' });
   },
   updateNotes(id: number, notes: string | null): Promise<RecommendationResponse> {
     return request(`/recommendations/${id}/notes`, {

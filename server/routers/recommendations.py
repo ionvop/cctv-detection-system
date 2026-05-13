@@ -172,7 +172,7 @@ def list_recommendations(
     ]
 
 
-@router.post("/generate/{intersection_id}", response_model=RecommendationResponse)
+@router.post("/{intersection_id}", response_model=RecommendationResponse)
 def generate_recommendation(
     intersection_id: int,
     db: Annotated[Session, Depends(get_db)],
@@ -219,7 +219,7 @@ def generate_recommendation(
     }
 
 
-@router.post("/generate-all", response_model=list[RecommendationResponse])
+@router.post("/bulk", response_model=list[RecommendationResponse])
 def generate_all_recommendations(
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[models.User, Depends(get_current_user)],

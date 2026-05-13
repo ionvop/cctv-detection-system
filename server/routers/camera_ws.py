@@ -251,9 +251,14 @@ async def boxes_stream(cctv_id: int, request: Request, token: str = Query(...)):
 
     async def generate():
         last_ts = 0.0
+        ticks = 0
         try:
             while True:
                 if await request.is_disconnected():
+                    break
+                ticks += 1
+                # Re-validate every 200 ticks (~10 s at 50 ms poll)
+                if ticks % 200 == 0 and not get_user_from_token(token):
                     break
                 raw = _redis.get(det_key)
                 if raw:
@@ -308,11 +313,17 @@ async def camera_ws(websocket: WebSocket, cctv_id: int, token: str = "", overlay
     )
     thread.start()
 
+    frame_count = 0
     try:
         while True:
             try:
                 frame_bytes = await asyncio.to_thread(frame_q.get, True, 5.0)
             except Exception:
+                break
+            frame_count += 1
+            # Re-validate session every 150 frames (~10 s at 15 fps)
+            if frame_count % 150 == 0 and not get_user_from_token(token):
+                await websocket.close(code=4001)
                 break
             try:
                 await websocket.send_bytes(frame_bytes)
