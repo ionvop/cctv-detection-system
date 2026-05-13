@@ -70,6 +70,12 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       TZ: ${TZ:-Asia/Manila}
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-false}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-24}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-500}
+      SUPER_KEY: ${SUPER_KEY:-}
+      FERNET_KEY: ${FERNET_KEY:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     volumes:
       - upload_data:/app/uploads
     ports:
@@ -110,6 +116,7 @@ services:
       REDIS_URL: redis://redis:6379
       CAMERAS_PER_WORKER: ${CAMERAS_PER_WORKER:-4}
       INFERENCE_EVERY_N: ${INFERENCE_EVERY_N:-1}
+      FERNET_KEY: ${FERNET_KEY:-}
     depends_on:
       pgbouncer:
         condition: service_healthy
